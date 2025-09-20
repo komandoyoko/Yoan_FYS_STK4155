@@ -1,6 +1,4 @@
-#!/bin/sh
-'''exec' "/Users/yoantutunarov/Documents/Master /FYS-STK3155/Yoan_FYS_STK4155/.venv/bin/python3.11" "$0" "$@"
-' '''
+#!/Users/vladislavfoss/Desktop/ELITE/Yoan_FYS_STK4155/.venv/bin/python3.13
 import sys
 from fontTools.merge import main
 if __name__ == '__main__':
