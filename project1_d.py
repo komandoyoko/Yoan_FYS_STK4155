@@ -159,6 +159,11 @@ def run_optimizer_ridge(method, X, y, lam=0.01):
     else:
         raise ValueError("Unknown method")
 
+
+
+
+
+
 plt.figure(figsize=(12, 10))
 
 # Ols fit
