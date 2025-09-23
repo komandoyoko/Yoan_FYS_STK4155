@@ -18,7 +18,7 @@ def ridge_gradient(X, y, theta, lam):
 
 
 
-def momentum_gd(X , y , iterations, momentum , n_steps , func , lam = 0.01):
+def momentum_gd(X , y , iterations, momentum , n_steps , func , lam ):
     theta = np.zeros(X.shape[1]) #we start by implementing the starting point of the theta
     change = np.zeros_like(theta) #we initialize the change
 
@@ -36,7 +36,7 @@ def momentum_gd(X , y , iterations, momentum , n_steps , func , lam = 0.01):
     return theta , mse_val
 
 
-def ADAgrad(X , y , iterations , n_steps , func , lam = 0.01 , eps = 1e-6 ): 
+def ADAgrad(X , y , iterations , n_steps , func , lam  , eps = 1e-6 ): 
     theta = np.zeros(X.shape[1]) #initialize the parameters we need
     r = np.zeros_like(theta)
 
@@ -58,7 +58,7 @@ def ADAgrad(X , y , iterations , n_steps , func , lam = 0.01 , eps = 1e-6 ):
 
 
 
-def RMSProp(X , y , iterations , n_steps , func , lam = 0.01 , p = 0.9 , eps = 1e-5):
+def RMSProp(X , y , iterations , n_steps , func , lam  , p = 0.9 , eps = 1e-5):
     theta = np.zeros(X.shape[1]) #initalize the first steps
     v = np.zeros_like(theta)
 
@@ -78,7 +78,7 @@ def RMSProp(X , y , iterations , n_steps , func , lam = 0.01 , p = 0.9 , eps = 1
 
 
 
-def ADAM(X , y , iterations , n_steps , func , lam = 0.01 , b1 = 0.9 , b2 = 0.999 , eps = 1e-5):
+def ADAM(X , y , iterations , n_steps , func , lam  , b1 = 0.9 , b2 = 0.999 , eps = 1e-5):
     theta = np.zeros(X.shape[1]) # we initialize the different things we need
     v = np.zeros_like(theta)
     m = np.zeros_like(theta)
@@ -111,7 +111,7 @@ also implement a plot of the MSE vs iterations of the different methods
 '''
 x = np.linspace(-1, 1, 200)  #we define x
 y_true = 1 / (1 + 25 * x**2) #the true runge function
-degree = 4 #we choose a polynomial of 4th degree
+degree = 10 #we choose a polynomial of 4th degree
 poly = PolynomialFeatures(degree) #create the polynomial_features object
 X = poly.fit_transform(x.reshape(-1, 1)) #design matrix
 y = y_true
@@ -124,30 +124,34 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
 Here we define a function called run_optimizer that will take all the different functions and go thourgh them creating different gradient descent methods
 and extracting the mse_val and theta values
 '''
-def run_optimizer_OLS(method, X, y):
+lam = 1e-5
+
+def run_optimizer_OLS(method, X, y , lambd):
     iterations = 400
-    n_steps = 0.01
+    n_steps = 0.05
     momentum = 0.9
+    lam = lambd
     if method == "GD":
         # Standard gradient descent (no momentum)
-        return momentum_gd(X, y, iterations, 0, n_steps, "OLS")
+        return momentum_gd(X, y, iterations, momentum, n_steps, "OLS" , lam)
     elif method == "Momentum":
-        return momentum_gd(X, y, iterations, momentum, n_steps, "OLS")
+        return momentum_gd(X, y, iterations, momentum, n_steps, "OLS" , lam)
     elif method == "Adagrad":
-        return ADAgrad(X, y, iterations, n_steps, "OLS")
+        return ADAgrad(X, y, iterations, n_steps, "OLS" , lam)
     elif method == "RMSProp":
-        return RMSProp(X, y, iterations, n_steps, "OLS")
+        return RMSProp(X, y, iterations, n_steps, "OLS" , lam)
     elif method == "Adam":
-        return ADAM(X, y, iterations, n_steps, "OLS")
+        return ADAM(X, y, iterations, n_steps, "OLS" , lam)
     else:
         raise ValueError("Unknown method")
     
-def run_optimizer_ridge(method, X, y, lam=0.01):
+def run_optimizer_ridge(method, X, y, lamb):
     iterations = 400
-    n_steps = 0.01
+    n_steps = 0.05
     momentum = 0.9
+    lam = lamb
     if method == "GD":
-        return momentum_gd(X, y, iterations, 0, n_steps, "Ridge", lam)
+        return momentum_gd(X, y, iterations, momentum, n_steps, "Ridge", lam)
     elif method == "Momentum":
         return momentum_gd(X, y, iterations, momentum, n_steps, "Ridge", lam)
     elif method == "Adagrad":
@@ -170,7 +174,7 @@ plt.figure(figsize=(12, 10))
 plt.subplot(2, 2, 1)
 plt.plot(x, y_true, 'k', label="Runge function")
 for method in ["GD", "Momentum", "Adagrad", "RMSProp", "Adam"]:
-    theta, mse_val = run_optimizer_OLS(method, X_train, y_train)
+    theta, mse_val = run_optimizer_OLS(method, X_train, y_train , lam)
     y_pred = poly.transform(x.reshape(-1, 1)) @ theta
     plt.plot(x, y_pred, label=method)
 plt.legend()
@@ -182,7 +186,7 @@ plt.grid(True)
 # OLS mse 
 plt.subplot(2, 2, 2)
 for method in ["GD", "Momentum", "Adagrad", "RMSProp", "Adam"]:
-    theta, mse_val = run_optimizer_OLS(method, X_train, y_train)
+    theta, mse_val = run_optimizer_OLS(method, X_train, y_train , lam)
     plt.plot(mse_val, label=method)
 plt.legend()
 plt.title("OLS Convergence (MSE vs iterations)")
@@ -194,11 +198,11 @@ plt.grid(True)
 plt.subplot(2, 2, 3)
 plt.plot(x, y_true, 'k', label="Runge function")
 for method in ["GD", "Momentum", "Adagrad", "RMSProp", "Adam"]:
-    theta, mse_val = run_optimizer_ridge(method, X_train, y_train, lam=0.01)
+    theta, mse_val = run_optimizer_ridge(method, X_train, y_train, lam)
     y_pred = poly.transform(x.reshape(-1, 1)) @ theta
     plt.plot(x, y_pred, label=method)
 plt.legend()
-plt.title(f"Ridge Runge approximation (degree={degree}, λ=0.01)")
+plt.title(f"Ridge Runge approximation (degree={degree}, λ={lam})")
 plt.xlabel("x")
 plt.ylabel("y")
 plt.grid(True)
@@ -206,7 +210,7 @@ plt.grid(True)
 #ridge mse
 plt.subplot(2, 2, 4)
 for method in ["GD", "Momentum", "Adagrad", "RMSProp", "Adam"]:
-    theta, mse_val = run_optimizer_ridge(method, X_train, y_train, lam=0.01)
+    theta, mse_val = run_optimizer_ridge(method, X_train, y_train, lam)
     plt.plot(mse_val, label=method)
 plt.legend()
 plt.title("Ridge Convergence (MSE vs iterations)")
