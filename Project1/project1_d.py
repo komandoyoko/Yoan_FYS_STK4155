@@ -167,56 +167,57 @@ def run_optimizer_ridge(method, X, y, lamb):
 
 
 
+if __name__ == "__main__" :
 
-plt.figure(figsize=(12, 10))
+    plt.figure(figsize=(12, 10))
 
-# Ols fit
-plt.subplot(2, 2, 1)
-plt.plot(x, y_true, 'k', label="Runge function")
-for method in ["GD", "Momentum", "Adagrad", "RMSProp", "Adam"]:
-    theta, mse_val = run_optimizer_OLS(method, X_train, y_train , lam)
-    y_pred = poly.transform(x.reshape(-1, 1)) @ theta
-    plt.plot(x, y_pred, label=method)
-plt.legend()
-plt.title(f"OLS Runge approximation (degree={degree})")
-plt.xlabel("x")
-plt.ylabel("y")
-plt.grid(True)
+    # Ols fit
+    plt.subplot(2, 2, 1)
+    plt.plot(x, y_true, 'k', label="Runge function")
+    for method in ["GD", "Momentum", "Adagrad", "RMSProp", "Adam"]:
+        theta, mse_val = run_optimizer_OLS(method, X_train, y_train , lam)
+        y_pred = poly.transform(x.reshape(-1, 1)) @ theta
+        plt.plot(x, y_pred, label=method)
+    plt.legend()
+    plt.title(f"OLS Runge approximation (degree={degree})")
+    plt.xlabel("x")
+    plt.ylabel("y")
+    plt.grid(True)
 
-# OLS mse 
-plt.subplot(2, 2, 2)
-for method in ["GD", "Momentum", "Adagrad", "RMSProp", "Adam"]:
-    theta, mse_val = run_optimizer_OLS(method, X_train, y_train , lam)
-    plt.plot(mse_val, label=method)
-plt.legend()
-plt.title("OLS Convergence (MSE vs iterations)")
-plt.xlabel("Iteration")
-plt.ylabel("MSE")
-plt.grid(True)
+    # OLS mse 
+    plt.subplot(2, 2, 2)
+    for method in ["GD", "Momentum", "Adagrad", "RMSProp", "Adam"]:
+        theta, mse_val = run_optimizer_OLS(method, X_train, y_train , lam)
+        plt.plot(mse_val, label=method)
+    plt.legend()
+    plt.title("OLS Convergence (MSE vs iterations)")
+    plt.xlabel("Iteration")
+    plt.ylabel("MSE")
+    plt.grid(True)
 
-# ridge fit
-plt.subplot(2, 2, 3)
-plt.plot(x, y_true, 'k', label="Runge function")
-for method in ["GD", "Momentum", "Adagrad", "RMSProp", "Adam"]:
-    theta, mse_val = run_optimizer_ridge(method, X_train, y_train, lam)
-    y_pred = poly.transform(x.reshape(-1, 1)) @ theta
-    plt.plot(x, y_pred, label=method)
-plt.legend()
-plt.title(f"Ridge Runge approximation (degree={degree}, λ={lam})")
-plt.xlabel("x")
-plt.ylabel("y")
-plt.grid(True)
+    # ridge fit
+    plt.subplot(2, 2, 3)
+    plt.plot(x, y_true, 'k', label="Runge function")
+    for method in ["GD", "Momentum", "Adagrad", "RMSProp", "Adam"]:
+        theta, mse_val = run_optimizer_ridge(method, X_train, y_train, lam)
+        y_pred = poly.transform(x.reshape(-1, 1)) @ theta
+        plt.plot(x, y_pred, label=method)
+    plt.legend()
+    plt.title(f"Ridge Runge approximation (degree={degree}, λ={lam})")
+    plt.xlabel("x")
+    plt.ylabel("y")
+    plt.grid(True)
 
-#ridge mse
-plt.subplot(2, 2, 4)
-for method in ["GD", "Momentum", "Adagrad", "RMSProp", "Adam"]:
-    theta, mse_val = run_optimizer_ridge(method, X_train, y_train, lam)
-    plt.plot(mse_val, label=method)
-plt.legend()
-plt.title("Ridge Convergence (MSE vs iterations)")
-plt.xlabel("Iteration")
-plt.ylabel("MSE")
-plt.grid(True)
+    #ridge mse
+    plt.subplot(2, 2, 4)
+    for method in ["GD", "Momentum", "Adagrad", "RMSProp", "Adam"]:
+        theta, mse_val = run_optimizer_ridge(method, X_train, y_train, lam)
+        plt.plot(mse_val, label=method)
+    plt.legend()
+    plt.title("Ridge Convergence (MSE vs iterations)")
+    plt.xlabel("Iteration")
+    plt.ylabel("MSE")
+    plt.grid(True)
 
-plt.tight_layout()
-plt.show()
+    plt.tight_layout()
+    plt.show()
