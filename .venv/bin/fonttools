@@ -1,7 +1,10 @@
-#!/Users/vladislavfoss/Desktop/ELITE/Yoan_FYS_STK4155/.venv/bin/python3.13
+#!/bin/sh
+'''exec' "/Users/yoantutunarov/Documents/Master /FYS-STK3155/Yoan_FYS_STK4155/.venv/bin/python3" "$0" "$@"
+' '''
+# -*- coding: utf-8 -*-
+import re
 import sys
 from fontTools.__main__ import main
 if __name__ == '__main__':
-    if sys.argv[0].endswith('.exe'):
-        sys.argv[0] = sys.argv[0][:-4]
+    sys.argv[0] = re.sub(r'(-script\.pyw|\.exe)?$', '', sys.argv[0])
     sys.exit(main())
