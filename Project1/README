@@ -1,1 +1,12 @@
 This file contains information about packages that are required to run our codes. 
+Firstly, you will have to have access to Jupyter notebook. 
+Then you can install the packages needed to run our codes.
+
+The first one - numpy is a open-source Python library for efficient numerical computation.
+Open your system terminal and install numpy by typing "pip install numpy". 
+
+The second package is scikit-learn which a popular, open-source machine learning library, not part of Python's standard library.
+Simply do it by typing "pip install scikit-learn" in the terminal. 
+
+The last one is matplotlib, which is a plotting library in Python used for creating high-quality visualizations and graphs. 
+You install it by typing "install matplotlib" in the terminal. 
