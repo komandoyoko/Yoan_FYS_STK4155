@@ -1,7 +1,3 @@
-# %% [markdown]
-# Part e) Writing our own code for Lasso regression 
-
-# %%
 def lasso_gradient(X, y, theta, lam):
     grad = (2 / n_samples) * X.T @ (X @ theta - y)
     subgrad = lam * np.sign(theta)
@@ -9,7 +5,6 @@ def lasso_gradient(X, y, theta, lam):
     return grad + subgrad
 
 
-# %%
 def momentum_gd(X, y, iterations, momentum, n_steps, func, lam=0.01):
     theta = np.zeros(X.shape[1])
     change = np.zeros_like(theta)
@@ -31,7 +26,6 @@ def momentum_gd(X, y, iterations, momentum, n_steps, func, lam=0.01):
     
     return theta, mse_val
 
-# %%
 def run_optimizer_lasso(method, X, y, lam=0.01):
     iterations = 400
     n_steps = 0.01
@@ -49,7 +43,7 @@ def run_optimizer_lasso(method, X, y, lam=0.01):
     else:
         raise ValueError("Unknown method")
 
-# %%
+
 theta_lasso, mse_lasso = run_optimizer_lasso("GD", X_train, y_train, lam=0.01)
 y_pred_lasso = X_test @ theta_lasso
 
