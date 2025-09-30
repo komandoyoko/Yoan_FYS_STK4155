@@ -1,7 +1,7 @@
 import numpy as np
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import PolynomialFeatures
+from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 import matplotlib.pyplot as plt
 
 
@@ -30,7 +30,6 @@ def momentum_gd(X , y , iterations, momentum , n_steps , func , lam ):
             grad = ridge_gradient(X , y , theta , lam)
 
         change = momentum * change + n_steps * grad #the change is based on the momentum * change + direction we are headed
-        print(change , theta)
         theta -= change #the final result is theta is changed based on the previous change + the new one.
 
         mse_val[i] =  mean_squared_error(y , X @ theta) #we want to calculate the error away from the true values of the function
@@ -108,6 +107,9 @@ def ADAM(X , y , iterations , n_steps , func , lam  , b1 = 0.9 , b2 = 0.999 , ep
 
 
 
+
+
+
 '''
 In this block of the code we define the Runge function, create a design matrix and try to extract the optimal theta values using the 
 gradient descents we have implemented. This will be plotted against the actual runge function to visually see how close we are, and we will
@@ -115,25 +117,35 @@ also implement a plot of the MSE vs iterations of the different methods
 '''
 x = np.linspace(-1, 1, 200)  #we define x
 y_true = 1 / (1 + 25 * x**2) #the true runge function
-degree = 10 #we choose a polynomial of 4th degree
-poly = PolynomialFeatures(degree) #create the polynomial_features object
-X = poly.fit_transform(x.reshape(-1, 1)) #design matrix
-y = y_true
+lam = 1e-4
+degree = 6 #we choose a polynomial of 4th degree
 
-# Split data for training to see if our model is more robust, rather than actually taking the full set.
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+
+# setup
+poly = PolynomialFeatures(degree)
+X = poly.fit_transform(x.reshape(-1, 1))
+
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)   # <--- mean/std learned here
+
+X_train, X_test, y_train, y_test = train_test_split(X_scaled, y_true, test_size=0.2)
+
+
+
+
+
 
 
 '''
 Here we define a function called run_optimizer that will take all the different functions and go thourgh them creating different gradient descent methods
 and extracting the mse_val and theta values
 '''
-lam = 1e-5
+
 
 def run_optimizer_OLS(method, X, y , lambd):
     iterations = 400
-    n_steps = 0.05
-    momentum = 0.9
+    n_steps = 0.03
+    momentum = 0.4
     lam = lambd
     if method == "GD":
         # Standard gradient descent (no momentum)
@@ -151,8 +163,8 @@ def run_optimizer_OLS(method, X, y , lambd):
     
 def run_optimizer_ridge(method, X, y, lamb):
     iterations = 400
-    n_steps = 0.05
-    momentum = 0.9
+    n_steps = 0.03
+    momentum = 0.4
     lam = lamb
     if method == "GD":
         return momentum_gd(X, y, iterations, momentum, n_steps, "Ridge", lam)
@@ -171,16 +183,29 @@ def run_optimizer_ridge(method, X, y, lamb):
 
 
 
+
+
+
+
+
+
+
+
 if __name__ == "__main__" :
 
     plt.figure(figsize=(12, 10))
 
-    # Ols fit
+    # --- OLS fit ---
     plt.subplot(2, 2, 1)
     plt.plot(x, y_true, 'k', label="Runge function")
     for method in ["GD", "Momentum", "Adagrad", "RMSProp", "Adam"]:
-        theta, mse_val = run_optimizer_OLS(method, X_train, y_train , lam)
-        y_pred = poly.transform(x.reshape(-1, 1)) @ theta
+        theta, mse_val = run_optimizer_OLS(method, X_train, y_train, lam)
+
+        # Use the same poly + scaler from above
+        X_pred = poly.transform(x.reshape(-1, 1))
+        X_pred = scaler.transform(X_pred)   # <--- FIX: use transform, not fit_transform
+        y_pred = X_pred @ theta
+
         plt.plot(x, y_pred, label=method)
     plt.legend()
     plt.title(f"OLS Runge approximation (degree={degree})")
@@ -188,10 +213,13 @@ if __name__ == "__main__" :
     plt.ylabel("y")
     plt.grid(True)
 
-    # OLS mse 
+
+
+
+    # OLS convergence
     plt.subplot(2, 2, 2)
     for method in ["GD", "Momentum", "Adagrad", "RMSProp", "Adam"]:
-        theta, mse_val = run_optimizer_OLS(method, X_train, y_train , lam)
+        _, mse_val = run_optimizer_OLS(method, X_train, y_train, lam)
         plt.plot(mse_val, label=method)
     plt.legend()
     plt.title("OLS Convergence (MSE vs iterations)")
@@ -199,12 +227,27 @@ if __name__ == "__main__" :
     plt.ylabel("MSE")
     plt.grid(True)
 
-    # ridge fit
+
+
+
+
+
+
+
+
+
+
+
+    # Ridge fit
     plt.subplot(2, 2, 3)
     plt.plot(x, y_true, 'k', label="Runge function")
     for method in ["GD", "Momentum", "Adagrad", "RMSProp", "Adam"]:
         theta, mse_val = run_optimizer_ridge(method, X_train, y_train, lam)
-        y_pred = poly.transform(x.reshape(-1, 1)) @ theta
+
+        X_pred = poly.transform(x.reshape(-1, 1))
+        X_pred = scaler.transform(X_pred)   # <--- same scaler here too
+        y_pred = X_pred @ theta
+
         plt.plot(x, y_pred, label=method)
     plt.legend()
     plt.title(f"Ridge Runge approximation (degree={degree}, λ={lam})")
@@ -212,10 +255,10 @@ if __name__ == "__main__" :
     plt.ylabel("y")
     plt.grid(True)
 
-    #ridge mse
+    # Ridge convergence 
     plt.subplot(2, 2, 4)
     for method in ["GD", "Momentum", "Adagrad", "RMSProp", "Adam"]:
-        theta, mse_val = run_optimizer_ridge(method, X_train, y_train, lam)
+        _, mse_val = run_optimizer_ridge(method, X_train, y_train, lam)
         plt.plot(mse_val, label=method)
     plt.legend()
     plt.title("Ridge Convergence (MSE vs iterations)")

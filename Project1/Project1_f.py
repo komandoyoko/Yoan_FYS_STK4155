@@ -1,18 +1,19 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import PolynomialFeatures
+
+from sklearn.preprocessing import PolynomialFeatures , StandardScaler
 
 from project1_d import  ADAgrad , RMSProp , ADAM , momentum_gd
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error
 
 
 
 
-def Stochastic_gradient(x , y  , degree  , lambd , method , optimizer , size_batch , epochs):
-    X = PolynomialFeatures(degree).fit_transform(x.reshape(-1 , 1))
+def Stochastic_gradient(X , y  , lambd , method , optimizer , size_batch , epochs):
     
     datapoint = len(x)
-    iterations = 400          # one update per batch
+    iterations = 1000          # one update per batch
     n_steps = 0.0001
     momentum = 0.3
     lam = lambd
@@ -52,59 +53,61 @@ def Stochastic_gradient(x , y  , degree  , lambd , method , optimizer , size_bat
     return theta , mse_val
 
 
+
+
+
+
 x = np.linspace(-3 , 3 , 50)
-y = 2+3*x
+y = 1/(1+25*x**2)
 
 lam = 0.005
 degree = 10
-'''
-for e in lamb:
-    theta , mse_val = Stochastic_gradient(x , y , method ="OLS", optimizer= "Adagrad", size_batch= = 30 , epochs = 50)
-'''
 
-optimizers = ["Momentum" ,  "Adagrad", "RMSProp", "Adam"]
+X = PolynomialFeatures(degree).fit_transform(x.reshape(-1 , 1))
+X = StandardScaler().fit_transform(X)
 
-plt.figure(figsize=(12, 8))
 
+
+
+
+
+optimizers = ["Momentum", "Adagrad", "RMSProp", "Adam"]
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+# --- OLS ---
 for opt in optimizers:
     theta, mse_val = Stochastic_gradient(
-        x, y,
-        degree=degree,
-        lambd=0,           # doesn’t matter for OLS
+        X, y,
+        lambd=0,
         method="OLS",
         optimizer=opt,
-        size_batch=30,
+        size_batch=50,
         epochs=50
     )
-    plt.plot(mse_val, label=f"{opt}")
+    axes[0].plot(mse_val, label=f"{opt}")
+axes[0].set_title(f"SGD Convergence (OLS, degree={degree})")
+axes[0].set_xlabel("Iteration")
+axes[0].set_ylabel("MSE")
+axes[0].legend()
+axes[0].grid(True)
 
-plt.title(f"SGD Convergence (OLS, degree={degree})")
-plt.xlabel("Iteration")
-plt.ylabel("MSE")
-plt.legend()
-plt.grid(True)
-plt.show()
-
-
-
-
-plt.figure(figsize=(12, 8))
-
+# --- Ridge ---
 for opt in optimizers:
     theta, mse_val = Stochastic_gradient(
-        x, y,
-        degree=degree,
+        X, y,
         lambd=lam,
         method="Ridge",
         optimizer=opt,
-        size_batch=30,
+        size_batch=50,
         epochs=50
     )
-    plt.plot(mse_val, label=f"{opt}")
+    axes[1].plot(mse_val, label=f"{opt}")
+axes[1].set_title(f"SGD Convergence (Ridge, degree={degree}, λ={lam})")
+axes[1].set_xlabel("Iteration")
+axes[1].set_ylabel("MSE")
+axes[1].legend()
+axes[1].grid(True)
 
-plt.title(f"SGD Convergence (Ridge, degree={degree}, λ={lam})")
-plt.xlabel("Iteration")
-plt.ylabel("MSE")
-plt.legend()
-plt.grid(True)
+plt.tight_layout()
 plt.show()
