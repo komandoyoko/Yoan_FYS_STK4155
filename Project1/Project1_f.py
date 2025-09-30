@@ -14,7 +14,7 @@ def Stochastic_gradient(x , y  , degree  , lambd , method , optimizer , size_bat
     datapoint = len(x)
     iterations = 400          # one update per batch
     n_steps = 0.0001
-    momentum = 0.9
+    momentum = 0.3
     lam = lambd
     theta  = np.zeros(X.shape[1])
     mse_val = np.array([])
@@ -53,16 +53,16 @@ def Stochastic_gradient(x , y  , degree  , lambd , method , optimizer , size_bat
 
 
 x = np.linspace(-3 , 3 , 50)
-y = 1 / (1 + 25 * x**2)
+y = 2+3*x
 
 lam = 0.005
-degree = 3
+degree = 10
 '''
 for e in lamb:
     theta , mse_val = Stochastic_gradient(x , y , method ="OLS", optimizer= "Adagrad", size_batch= = 30 , epochs = 50)
 '''
 
-optimizers = ["Momentum", "Adagrad", "RMSProp", "Adam"]
+optimizers = ["Momentum" ,  "Adagrad", "RMSProp", "Adam"]
 
 plt.figure(figsize=(12, 8))
 

@@ -37,6 +37,9 @@ def momentum_gd(X , y , iterations, momentum , n_steps , func , lam ):
     return theta , mse_val
 
 
+
+
+
 def ADAgrad(X , y , iterations , n_steps , func , lam  , eps = 1e-6 ): 
     theta = np.zeros(X.shape[1]) #initialize the parameters we need
     r = np.zeros_like(theta)
