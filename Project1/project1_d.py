@@ -1,5 +1,4 @@
 import numpy as np
-from scikit-learn import 
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import PolynomialFeatures
@@ -31,6 +30,7 @@ def momentum_gd(X , y , iterations, momentum , n_steps , func , lam ):
             grad = ridge_gradient(X , y , theta , lam)
 
         change = momentum * change + n_steps * grad #the change is based on the momentum * change + direction we are headed
+        print(change , theta)
         theta -= change #the final result is theta is changed based on the previous change + the new one.
 
         mse_val[i] =  mean_squared_error(y , X @ theta) #we want to calculate the error away from the true values of the function
