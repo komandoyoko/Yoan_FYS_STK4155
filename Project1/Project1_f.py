@@ -8,8 +8,44 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
 
 
+def Stochastic_gradient(X, y, lambd, method, optimizer, size_batch, epochs):
+    datapoint = len(y)
+    iterations = 1  # one update per batch
+    n_steps = 0.0001 #we set a fixes learn rate
+    momentum = 0.3 #this is the best momentum when testing
+    lam = lambd
+    theta = np.zeros(X.shape[1])
+    mse_vals = []
 
+    for epoch in range(epochs):
+        indices = np.random.permutation(datapoint)
+        X_shuffled, y_shuffled = X[indices], y[indices]
 
+        for i in range(0, datapoint, size_batch):
+            X_batch = X_shuffled[i:i+size_batch]
+            y_batch = y_shuffled[i:i+size_batch]
+
+            if method == "OLS" and optimizer == "Adagrad":
+                theta, mse_val = ADAgrad(X_batch, y_batch, iterations=iterations, n_steps=n_steps, func="OLS", lam=lam, theta_init=theta)
+            elif method == "OLS" and optimizer == "RMSProp":
+                theta, mse_val = RMSProp(X_batch, y_batch, iterations=iterations, n_steps=n_steps, func="OLS", lam=lam, theta_init=theta)
+            elif method == "OLS" and optimizer == "Adam":
+                theta, mse_val = ADAM(X_batch, y_batch, iterations=iterations, n_steps=n_steps, func="OLS", lam=lam, theta_init=theta)
+            elif method == "OLS" and optimizer == "Momentum":
+                theta, mse_val = momentum_gd(X_batch, y_batch, iterations=iterations, momentum=momentum, n_steps=n_steps, func="OLS", lam=lam, theta_init=theta)
+            elif method == "Ridge" and optimizer == "Momentum":
+                theta, mse_val = momentum_gd(X_batch, y_batch, iterations=iterations, momentum=momentum, n_steps=n_steps, func="Ridge", lam=lam, theta_init=theta)
+            elif method == "Ridge" and optimizer == "Adagrad":
+                theta, mse_val = ADAgrad(X_batch, y_batch, iterations=iterations, n_steps=n_steps, func="Ridge", lam=lam, theta_init=theta)
+            elif method == "Ridge" and optimizer == "RMSProp":
+                theta, mse_val = RMSProp(X_batch, y_batch, iterations=iterations, n_steps=n_steps, func="Ridge", lam=lam, theta_init=theta)
+            elif method == "Ridge" and optimizer == "Adam":
+                theta, mse_val = ADAM(X_batch, y_batch, iterations=iterations, n_steps=n_steps, func="Ridge", lam=lam, theta_init=theta)
+
+            mse_vals.extend(mse_val if isinstance(mse_val, (list, np.ndarray)) else [mse_val])
+
+    return theta, np.array(mse_vals)
+'''
 def Stochastic_gradient(X , y  , lambd , method , optimizer , size_batch , epochs):
     
     datapoint = len(x)
@@ -51,7 +87,7 @@ def Stochastic_gradient(X , y  , lambd , method , optimizer , size_batch , epoch
             elif method == "Ridge" and optimizer == "Adam":
                 theta, mse_val = ADAM(X_batch, y_batch, iterations=iterations, n_steps=n_steps, func="Ridge", lam=lam)
     return theta , mse_val
-
+'''
 
 
 
@@ -71,7 +107,7 @@ X = StandardScaler().fit_transform(X)
 
 
 
-optimizers = ["Momentum", "Adagrad", "RMSProp", "Adam"]
+optimizers = [ "Adagrad", "RMSProp", "Adam", "Momentum"]
 
 fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
