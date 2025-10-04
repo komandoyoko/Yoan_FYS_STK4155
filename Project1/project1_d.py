@@ -18,8 +18,12 @@ def ridge_gradient(X, y, theta, lam):
 
 
 
-def momentum_gd(X , y , iterations, momentum , n_steps , func , lam ):
-    theta = np.zeros(X.shape[1]) #we start by implementing the starting point of the theta
+def momentum_gd(X , y , iterations, momentum , n_steps , func , lam , theta_init = None):
+    if theta_init is None:
+        theta = np.zeros(X.shape[1])
+    else:
+        theta = theta_init.copy() #we start by implementing the starting point of the theta
+    
     change = np.zeros_like(theta) #we initialize the change
 
     mse_val = np.zeros(iterations) # We also initialize mse_val as the measure of how far away from our goal we are
@@ -39,8 +43,11 @@ def momentum_gd(X , y , iterations, momentum , n_steps , func , lam ):
 
 
 
-def ADAgrad(X , y , iterations , n_steps , func , lam  , eps = 1e-6 ): 
-    theta = np.zeros(X.shape[1]) #initialize the parameters we need
+def ADAgrad(X , y , iterations , n_steps , func , lam  , eps = 1e-6 , theta_init = None): 
+    if theta_init is None:
+        theta = np.zeros(X.shape[1])
+    else:
+        theta = theta_init.copy() #initialize the parameters we need
     r = np.zeros_like(theta)
 
     mse_val = np.zeros(iterations)
@@ -61,8 +68,11 @@ def ADAgrad(X , y , iterations , n_steps , func , lam  , eps = 1e-6 ):
 
 
 
-def RMSProp(X , y , iterations , n_steps , func , lam  , p = 0.9 , eps = 1e-5):
-    theta = np.zeros(X.shape[1]) #initalize the first steps
+def RMSProp(X , y , iterations , n_steps , func , lam  , p = 0.9 , eps = 1e-5, theta_init = None):
+    if theta_init is None:
+        theta = np.zeros(X.shape[1])
+    else:
+        theta = theta_init.copy() #initalize the first steps
     v = np.zeros_like(theta)
 
     mse_val = np.zeros(iterations)
@@ -81,8 +91,11 @@ def RMSProp(X , y , iterations , n_steps , func , lam  , p = 0.9 , eps = 1e-5):
 
 
 
-def ADAM(X , y , iterations , n_steps , func , lam  , b1 = 0.9 , b2 = 0.999 , eps = 1e-5):
-    theta = np.zeros(X.shape[1]) # we initialize the different things we need
+def ADAM(X , y , iterations , n_steps , func , lam  , b1 = 0.9 , b2 = 0.999 , eps = 1e-5, theta_init = None):
+    if theta_init is None:
+        theta = np.zeros(X.shape[1])
+    else:
+        theta = theta_init.copy() # we initialize the different things we need
     v = np.zeros_like(theta)
     m = np.zeros_like(theta)
 
@@ -103,6 +116,11 @@ def ADAM(X , y , iterations , n_steps , func , lam  , b1 = 0.9 , b2 = 0.999 , ep
 
         mse_val[i-1] = mean_squared_error(y , X @ theta)  #calculkate the MSE as always
     return theta , mse_val
+
+
+
+
+
 
 
 

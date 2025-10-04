@@ -4,26 +4,25 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import PolynomialFeatures , StandardScaler
 
 from project1_d import  ADAgrad , RMSProp , ADAM , momentum_gd
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error
 
+'''
 
 def Stochastic_gradient(X, y, lambd, method, optimizer, size_batch, epochs):
     datapoint = len(y)
     iterations = 1  # one update per batch
-    n_steps = 0.0001 #we set a fixes learn rate
+    n_steps = 0.03 #we set a fixes learn rate
     momentum = 0.3 #this is the best momentum when testing
     lam = lambd
     theta = np.zeros(X.shape[1])
     mse_vals = []
 
-    for epoch in range(epochs):
-        indices = np.random.permutation(datapoint)
-        X_shuffled, y_shuffled = X[indices], y[indices]
+    for epoch in range(epochs): #want to run as long as we have set epochs
+        indices = np.random.permutation(datapoint) #shuffle the indixes
+        X_shuffled, y_shuffled = X[indices], y[indices] 
 
         for i in range(0, datapoint, size_batch):
-            X_batch = X_shuffled[i:i+size_batch]
-            y_batch = y_shuffled[i:i+size_batch]
+            X_batch = X_shuffled[i:i+size_batch] #here we set up the minibatch
+            y_batch = y_shuffled[i:i+size_batch] #y minibatch carrying the correct values for our indexes
 
             if method == "OLS" and optimizer == "Adagrad":
                 theta, mse_val = ADAgrad(X_batch, y_batch, iterations=iterations, n_steps=n_steps, func="OLS", lam=lam, theta_init=theta)
@@ -46,54 +45,57 @@ def Stochastic_gradient(X, y, lambd, method, optimizer, size_batch, epochs):
 
     return theta, np.array(mse_vals)
 '''
-def Stochastic_gradient(X , y  , lambd , method , optimizer , size_batch , epochs):
-    
-    datapoint = len(x)
-    iterations = 1000          # one update per batch
-    n_steps = 0.0001
-    momentum = 0.3
-    lam = lambd
-    theta  = np.zeros(X.shape[1])
-    mse_val = np.array([])
-    for epoch in range(epochs):
-        indices = np.random.permutation(datapoint)
-        X_shuffled , y_shuffled = X[indices] , y[indices]
 
-        for i in range(0, datapoint , size_batch):
+def Stochastic_gradient(X, y, lambd, method, optimizer, size_batch, epochs, total_updates=400):
+    datapoint = len(y)
+    n_steps = 0.03   # learning rate
+    momentum = 0.3   # momentum factor
+    lam = lambd
+    theta = np.zeros(X.shape[1])
+
+    mse_vals = []
+    updates = 0   # keep track of total updates
+
+    while updates < total_updates:   # run until we have the same number of updates as vanilla GD
+        indices = np.random.permutation(datapoint)
+        X_shuffled, y_shuffled = X[indices], y[indices]
+
+        for i in range(0, datapoint, size_batch):
+            if updates >= total_updates:
+                break  # stop exactly at total_updates
+
             X_batch = X_shuffled[i:i+size_batch]
             y_batch = y_shuffled[i:i+size_batch]
 
             if method == "OLS" and optimizer == "Adagrad":
-                theta, mse_val = ADAgrad(X_batch, y_batch, iterations=iterations, n_steps=n_steps, func="OLS", lam=lam)
-
+                theta, mse_val = ADAgrad(X_batch, y_batch, iterations=1, n_steps=n_steps, func="OLS", lam=lam, theta_init=theta)
             elif method == "OLS" and optimizer == "RMSProp":
-                theta, mse_val = RMSProp(X_batch, y_batch, iterations=iterations, n_steps=n_steps, func="OLS", lam=lam)
-
+                theta, mse_val = RMSProp(X_batch, y_batch, iterations=1, n_steps=n_steps, func="OLS", lam=lam, theta_init=theta)
             elif method == "OLS" and optimizer == "Adam":
-                theta, mse_val = ADAM(X_batch, y_batch, iterations=iterations, n_steps=n_steps, func="OLS", lam=lam)
-            
+                theta, mse_val = ADAM(X_batch, y_batch, iterations=1, n_steps=n_steps, func="OLS", lam=lam, theta_init=theta)
             elif method == "OLS" and optimizer == "Momentum":
-                theta, mse_val = momentum_gd(X_batch, y_batch, iterations=iterations, momentum=momentum, n_steps=n_steps, func="OLS", lam=lam)
-
-            elif method == "Ridge" and optimizer == "Momentum":
-                theta, mse_val = momentum_gd(X_batch, y_batch, iterations=iterations, momentum=momentum, n_steps=n_steps, func="Ridge", lam=lam)
+                theta, mse_val = momentum_gd(X_batch, y_batch, iterations=1, momentum=momentum, n_steps=n_steps, func="OLS", lam=lam, theta_init=theta)
 
             elif method == "Ridge" and optimizer == "Adagrad":
-                theta, mse_val = ADAgrad(X_batch, y_batch, iterations=iterations, n_steps=n_steps, func="Ridge", lam=lam)
-
+                theta, mse_val = ADAgrad(X_batch, y_batch, iterations=1, n_steps=n_steps, func="Ridge", lam=lam, theta_init=theta)
             elif method == "Ridge" and optimizer == "RMSProp":
-                theta, mse_val = RMSProp(X_batch, y_batch, iterations=iterations, n_steps=n_steps, func="Ridge", lam=lam)
-
+                theta, mse_val = RMSProp(X_batch, y_batch, iterations=1, n_steps=n_steps, func="Ridge", lam=lam, theta_init=theta)
             elif method == "Ridge" and optimizer == "Adam":
-                theta, mse_val = ADAM(X_batch, y_batch, iterations=iterations, n_steps=n_steps, func="Ridge", lam=lam)
-    return theta , mse_val
-'''
+                theta, mse_val = ADAM(X_batch, y_batch, iterations=1, n_steps=n_steps, func="Ridge", lam=lam, theta_init=theta)
+            elif method == "Ridge" and optimizer == "Momentum":
+                theta, mse_val = momentum_gd(X_batch, y_batch, iterations=1, momentum=momentum, n_steps=n_steps, func="Ridge", lam=lam, theta_init=theta)
+
+            # store MSE
+            mse_vals.append(mse_val[-1] if isinstance(mse_val, (list, np.ndarray)) else mse_val)
+
+            updates += 1
+
+    return theta, np.array(mse_vals)
 
 
 
 
-
-x = np.linspace(-3 , 3 , 50)
+x = np.linspace(-3 , 3 , 80)
 y = 1/(1+25*x**2)
 
 lam = 0.005
@@ -103,6 +105,9 @@ X = PolynomialFeatures(degree).fit_transform(x.reshape(-1 , 1))
 X = StandardScaler().fit_transform(X)
 
 
+
+
+from project1_d import run_optimizer_OLS , run_optimizer_ridge
 
 
 
@@ -118,8 +123,8 @@ for opt in optimizers:
         lambd=0,
         method="OLS",
         optimizer=opt,
-        size_batch=50,
-        epochs=50
+        size_batch=80,
+        epochs=400
     )
     axes[0].plot(mse_val, label=f"{opt}")
 axes[0].set_title(f"SGD Convergence (OLS, degree={degree})")
@@ -135,11 +140,58 @@ for opt in optimizers:
         lambd=lam,
         method="Ridge",
         optimizer=opt,
-        size_batch=50,
-        epochs=50
+        size_batch=80,
+        epochs=400
     )
     axes[1].plot(mse_val, label=f"{opt}")
 axes[1].set_title(f"SGD Convergence (Ridge, degree={degree}, λ={lam})")
+axes[1].set_xlabel("Iteration")
+axes[1].set_ylabel("MSE")
+axes[1].legend()
+axes[1].grid(True)
+
+plt.tight_layout()
+plt.show()
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+# --- OLS ---
+theta_gd, mse_gd = run_optimizer_OLS("GD", X, y, lambd=0)
+axes[0].plot(mse_gd, label="Vanilla GD", color='black', linewidth=2)
+
+for opt in optimizers:
+    theta, mse_val = Stochastic_gradient(
+        X, y,
+        lambd=0,
+        method="OLS",
+        optimizer=opt,
+        size_batch=80,
+        epochs=400
+    )
+    axes[0].plot(mse_val, label=f"SGD {opt}", linestyle='--')
+
+axes[0].set_title(f"OLS Convergence: Vanilla GD vs SGD (degree={degree})")
+axes[0].set_xlabel("Iteration")
+axes[0].set_ylabel("MSE")
+axes[0].legend()
+axes[0].grid(True)
+
+# --- Ridge ---
+theta_gd, mse_gd = run_optimizer_ridge("GD", X, y, lamb=lam)
+axes[1].plot(mse_gd, label="Vanilla GD", color='black', linewidth=2)
+
+for opt in optimizers:
+    theta, mse_val = Stochastic_gradient(
+        X, y,
+        lambd=lam,
+        method="Ridge",
+        optimizer=opt,
+        size_batch=80,
+        epochs=400
+    )
+    axes[1].plot(mse_val, label=f"SGD {opt}", linestyle='--')
+
+axes[1].set_title(f"Ridge Convergence: Vanilla GD vs SGD (λ={lam})")
 axes[1].set_xlabel("Iteration")
 axes[1].set_ylabel("MSE")
 axes[1].legend()
