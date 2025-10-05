@@ -11,7 +11,7 @@ def lasso_gradient(X, y, theta, lam):
 
 def run_optimizer_lasso(method, X, y, lam=0.01):
     iterations = 400
-    n_steps = 0.01
+    n_steps = 0.001
     momentum = 0.9
 
     if method in ["GD", "Momentum"]:
@@ -22,8 +22,8 @@ def run_optimizer_lasso(method, X, y, lam=0.01):
 
         for i in range(iterations):
             grad = lasso_gradient(X, y, theta, lam)
-            change = mom * change + n_steps * grad
-            theta -= change
+            change = mom * change - n_steps * grad
+            theta += change
             mse_val[i] = mean_squared_error(y, X @ theta)
 
         return theta, mse_val
