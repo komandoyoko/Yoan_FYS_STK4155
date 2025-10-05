@@ -5,7 +5,7 @@ from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 import matplotlib.pyplot as plt
 
 
-n_samples = 200
+n_samples = 200 #number of samples we will be using
 
 
 def ols_gradient(X, y, theta):
@@ -44,10 +44,10 @@ def momentum_gd(X , y , iterations, momentum , n_steps , func , lam , theta_init
 
 
 def ADAgrad(X , y , iterations , n_steps , func , lam  , eps = 1e-6 , theta_init = None): 
-    if theta_init is None:
+    if theta_init is None: #if we do not have an initial theta we set it to 0
         theta = np.zeros(X.shape[1])
     else:
-        theta = theta_init.copy() #initialize the parameters we need
+        theta = theta_init.copy() #initialize the parameters we need from the function call
     r = np.zeros_like(theta)
 
     mse_val = np.zeros(iterations)
@@ -144,9 +144,9 @@ poly = PolynomialFeatures(degree)
 X = poly.fit_transform(x.reshape(-1, 1))
 
 scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X)   # <--- mean/std learned here
+X_scaled = scaler.fit_transform(X)   # mean/std learned here
 
-X_train, X_test, y_train, y_test = train_test_split(X_scaled, y_true, test_size=0.2)
+X_train, X_test, y_train, y_test = train_test_split(X_scaled, y_true, test_size=0.2) #We then split the data
 
 
 
