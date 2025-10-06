@@ -24,11 +24,11 @@ class Optimizer:
     def name(self) -> str:
         return self.__class__.__name__
 
-    def step(self, beta: np.ndarray, gradient: np.ndarray, eta: float = 1.0) -> np.ndarray:
+    def step(self, theta: np.ndarray, gradient: np.ndarray, eta: float = 1.0) -> np.ndarray:
         """
         Perform a single optimization step.
         Args:
-            beta (np.ndarray): Current parameters.
+            theta (np.ndarray): Current parameters.
             gradient (np.ndarray): Current gradient.
             eta (float): Learning rate.
         Returns:
@@ -50,8 +50,8 @@ class FixedLearningRate(Optimizer):
         return "Fixed Learning Rate"
 
     @override
-    def step(self, beta: np.ndarray, gradient: np.ndarray, eta: float = 1.0) -> np.ndarray:
-        return beta - eta * gradient
+    def step(self, theta: np.ndarray, gradient: np.ndarray, eta: float = 1.0) -> np.ndarray:
+        return theta - eta * gradient
 
 class AdaGrad(Optimizer):
     """
@@ -73,12 +73,12 @@ class AdaGrad(Optimizer):
         self.G = None
 
     @override
-    def step(self, beta: np.ndarray, gradient: np.ndarray, eta: float = 1.0) -> np.ndarray:
+    def step(self, theta: np.ndarray, gradient: np.ndarray, eta: float = 1.0) -> np.ndarray:
         if self.G is None:
             self.G = np.zeros_like(gradient)
         self.G += gradient**2
         lr = eta / (np.sqrt(self.G) + self.epsilon)
-        return beta - lr * gradient
+        return theta - lr * gradient
 
 class Adam(Optimizer):
     """
@@ -106,7 +106,7 @@ class Adam(Optimizer):
         self.t = 0
 
     @override
-    def step(self, beta: np.ndarray, gradient: np.ndarray, eta: float = 1.0) -> np.ndarray: 
+    def step(self, theta: np.ndarray, gradient: np.ndarray, eta: float = 1.0) -> np.ndarray: 
         if self.m is None:
             self.m = np.zeros_like(gradient)
         if self.v is None:
@@ -119,7 +119,7 @@ class Adam(Optimizer):
         m_hat = self.m / (1 - self.beta1 ** self.t)
         v_hat = self.v / (1 - self.beta2 ** self.t)
 
-        return beta - (eta * m_hat) / (np.sqrt(v_hat) + self.epsilon)
+        return theta - (eta * m_hat) / (np.sqrt(v_hat) + self.epsilon)
 
 class Momentum(Optimizer):
     """
@@ -141,11 +141,11 @@ class Momentum(Optimizer):
         self.velocity = None
 
     @override
-    def step(self, beta: np.ndarray, gradient: np.ndarray, eta: float = 1.0) -> np.ndarray:     
+    def step(self, theta: np.ndarray, gradient: np.ndarray, eta: float = 1.0) -> np.ndarray:     
         if self.velocity is None:
             self.velocity = np.zeros_like(gradient)
         self.velocity = self.momentum * self.velocity - eta * gradient
-        return beta + self.velocity
+        return theta + self.velocity
 
 class RMSProp(Optimizer):
     """
@@ -168,9 +168,9 @@ class RMSProp(Optimizer):
         self.cache = None
 
     @override
-    def step(self, beta: np.ndarray, gradient: np.ndarray, eta: float = 1.0) -> np.ndarray:
+    def step(self, theta: np.ndarray, gradient: np.ndarray, eta: float = 1.0) -> np.ndarray:
         if self.cache is None:
             self.cache = np.zeros_like(gradient)
         self.cache = self.decay_rate * self.cache + (1 - self.decay_rate) * (gradient ** 2)
-        adjusted_lr = eta / (np.sqrt(self.cache) + self.epsilon)
-        return beta - adjusted_lr * gradient
+        lr = eta / (np.sqrt(self.cache) + self.epsilon)
+        return theta - lr * gradient

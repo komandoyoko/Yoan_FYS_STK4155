@@ -14,8 +14,8 @@ def runge(x: np.ndarray, noise: bool = False) -> np.ndarray:
         np.ndarray: Output data of shape (n_samples,).
     """
     y = 1 / (1 + 25 * x**2)
-    if noise:     
-        y += np.random.normal(0, 0.1, x.shape)   
+    if noise:
+        y += 0.1 * np.random.normal(0, 1, x.shape)
     return y
 
 def x(n_samples: int = 100, random_state: int | None = None) -> np.ndarray:

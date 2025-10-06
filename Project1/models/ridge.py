@@ -1,4 +1,7 @@
+from typing import override
 import numpy as np
+
+from .optimization import Optimizer
 from .ols import OLS
 
 class Ridge(OLS):
@@ -20,6 +23,10 @@ class Ridge(OLS):
         super().__init__(x, y, degree, test_size)
         self.reg_lambda = reg_lambda
     
+    @override
+    def name(self):
+        return "Ridge"
+    
     def set_lambda(self, reg_lambda: float) -> None:
         """
         Set the regularization strength for the model.
@@ -28,12 +35,17 @@ class Ridge(OLS):
         """
         self.reg_lambda = reg_lambda
 
-    def fit(self) -> None:
+    @override
+    def fit(self, optimizer: Optimizer | None = None, batch_size: int | None = None) -> None:
         """
         Fit the model to the data (analytical).
         """
-        X = self.design_matrix()
-        self.theta = np.linalg.inv(X.T @ X + self.reg_lambda * np.eye(X.shape[1])) @ X.T @ self.y_train
+        if optimizer is not None:
+            self.gradient_descent(optimizer=optimizer, batch_size=batch_size)
+        else:
+            X = self.design_matrix()
+            self.theta = np.linalg.inv(X.T @ X + self.reg_lambda * np.eye(X.shape[1])) @ X.T @ self.y_train
 
+    @override
     def gradient(self, X):
         return super().gradient(X) + 2 * self.reg_lambda * self.theta

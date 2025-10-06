@@ -22,6 +22,9 @@ class OLS:
         self.degree = degree
         self.theta: np.ndarray = None
     
+    def name(self) -> str:
+        return "OLS"
+    
     def set_degree(self, degree: int) -> None:
         """
         Set the polynomial degree for the model.
@@ -29,21 +32,30 @@ class OLS:
             degree (int): The polynomial degree for the model.
         """
         self.degree = degree
-    
-    def design_matrix(self) -> np.ndarray:
+
+    def design_matrix(self, x: np.ndarray | None = None) -> np.ndarray:
         """
         Create the design matrix for polynomial features.
         Returns:
             np.ndarray: The design matrix.
         """
-        return np.vander(self.x_train, N=self.degree + 1, increasing=True)
+        if x is None:
+            x = self.x_train
+        return np.vander(x, N=self.degree + 1, increasing=True)
 
-    def fit(self) -> None:
+    def fit(self, optimizer: Optimizer | None = None, batch_size: int | None = None) -> None:
         """
-        Fit the model to the data (analytical).
+        Fit the model to the data.
+        Args:
+            optimizer (Optimizer | None): The optimization method to use. If None, use analytical solution.
+            batch_size (int | None): The batch size for stochastic gradient descent. If None, use full batch gradient descent.
         """
-        X = self.design_matrix()
-        self.theta = np.linalg.inv(X.T @ X) @ X.T @ self.y_train
+        if optimizer is None:
+            X = self.design_matrix()
+            self.theta = np.linalg.inv(X.T @ X) @ X.T @ self.y_train # Analytical solution
+        else:
+            self.gradient_descent(optimizer=optimizer, batch_size=batch_size)
+
 
     def gradient(self, X: np.ndarray) -> np.ndarray:
         """
@@ -65,6 +77,14 @@ class OLS:
         """
         return 2/len(self.y_train) * X.T @ X
 
+    def update_parameters(self, theta: np.ndarray, eta: float) -> None:
+        """
+        Update the model parameters.
+        Args:
+            theta (np.ndarray): The new parameter values.
+        """
+        self.theta = theta
+
     def gradient_descent(self, optimizer: Optimizer, batch_size: int | None = None) -> None:
         """
         Fit the model using Gradient Descent.
@@ -73,7 +93,7 @@ class OLS:
             batch_size (int | None): The batch size for stochastic gradient descent. If None, use full batch gradient descent.
         """
         X = self.design_matrix()
-        self.theta = np.random.randn(X.shape[1])
+        self.theta = np.zeros_like(X[0])  # Initialize parameters
 
         H = self.hessian(X)        # Hessian matrix
         eig = np.linalg.eigvals(H) # Eigenvalues of the Hessian
@@ -87,11 +107,13 @@ class OLS:
                 X_batch = X[indices]
                 y_batch = self.y_train[indices]
                 grad = -2/batch_size * X_batch.T @ (y_batch - X_batch @ self.theta)
-                self.theta = optimizer.step(self.theta, grad, eta)
             # Full Batch Gradient Descent
             else:
                 grad = self.gradient(X)
-                self.theta = optimizer.step(self.theta, grad, eta)
+
+            # Update parameters using the optimizer
+            step = optimizer.step(self.theta, grad, eta)
+            self.update_parameters(step, eta)
 
     def predict(self) -> np.ndarray:
         """
@@ -101,7 +123,7 @@ class OLS:
         """
         if self.theta is None:
             raise ValueError("Model is not fitted yet. Call 'fit' before 'predict'.")
-        X = np.vander(self.x_test, N=self.degree + 1, increasing=True)
+        X = self.design_matrix(self.x_test)
         return X @ self.theta
 
     def mse(self) -> float:
@@ -121,7 +143,7 @@ class OLS:
         return 1 - np.sum((self.y_test - self.predict()) ** 2) \
                  / np.sum((self.y_test - np.mean(self.y_test)) ** 2)
     
-    def bootstrap(self, n_bootstraps: int = 100) -> tuple[float, float, float]:
+    def bootstrap(self, optimizer: Optimizer | None = None, n_bootstraps: int = 100) -> tuple[float, float, float]:
         """
         Perform bootstrap resampling to estimate bias and variance.
         Args:
@@ -138,9 +160,10 @@ class OLS:
 
         for i in range(n_bootstraps):
             self.x_train, self.y_train = resample(x, y) # Bootstrap resample
-            self.fit()
+            self.fit(optimizer=optimizer)               # Fit model
             y_pred[:, i] = self.predict().ravel()
 
+        # Calculate error, bias, and variance
         error: float = np.mean( (y_test - y_pred)**2 )
         bias: float = np.mean( (y_test - np.mean(y_pred, axis=1, keepdims=True))**2 )
         variance: float = np.mean( np.var(y_pred, axis=1, keepdims=True))
@@ -149,7 +172,7 @@ class OLS:
 
         return error, bias, variance
 
-    def kfold_cross_validation(self, k: int = 5) -> float:
+    def kfold_cross_validation(self, optimizer: Optimizer | None = None, k: int = 5) -> float:
         """
         Perform k-fold cross-validation to estimate the model's performance.
         Args:
@@ -164,15 +187,14 @@ class OLS:
         x, y = self.x_train, self.y_train  # Use training data for cross-validation
 
         for train_index, val_index in kf.split(x):
-            x_train_fold, x_val_fold = x[train_index], x[val_index]
-            y_train_fold, y_val_fold = y[train_index], y[val_index]
+            self.x_train, x_val = x[train_index], x[val_index]
+            self.y_train, y_val = y[train_index], y[val_index]
 
-            self.x_train, self.y_train = x_train_fold, y_train_fold
-            self.fit()
+            self.fit(optimizer=optimizer)
 
-            X_val_design = np.vander(x_val_fold, N=self.degree + 1, increasing=True)
-            y_val_pred = X_val_design @ self.theta
-            mse_fold = np.mean((y_val_fold - y_val_pred) ** 2)
+            X_val = self.design_matrix(x_val)
+            y_val_pred = X_val @ self.theta
+            mse_fold = np.mean((y_val - y_val_pred) ** 2)
             mse_list.append(mse_fold)
 
         self.x_train, self.y_train = x, y  # Restore original training data
