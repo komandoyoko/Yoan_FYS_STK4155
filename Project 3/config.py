@@ -1,83 +1,96 @@
-from dataclasses import dataclass
+# config.py
+
+from dataclasses import dataclass, asdict
 from pathlib import Path
+import torch
+
+
+# ---------- Paths ----------
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 DATA_DIR = PROJECT_ROOT / "data"
-RAW_CSV_FILENAME = "gamer2-ppg-2000-01-02.csv" 
+CHECKPOINT_DIR = PROJECT_ROOT / "checkpoints"
+PLOTS_DIR = PROJECT_ROOT / "plots"
 
-# Full path to the raw CSV
-RAW_CSV_PATH = DATA_DIR / RAW_CSV_FILENAME
+# Create dirs if they don't exist (safe to import everywhere)
+for d in [CHECKPOINT_DIR, PLOTS_DIR]:
+    d.mkdir(parents=True, exist_ok=True)
+
+
+# ---------- Core configuration objects ----------
 
 @dataclass
 class DataConfig:
-    # Column names in the CSV
-    timestamp_col: str = "timestamp"   # set to None if there is no timestamp
-    ppg_col: str = "ppg"               # name of the PPG signal column
+    # Which gamer´s data to use
+    gamer_ids: tuple = (1, 2, 3, 4, 5)
 
-    sample_rate_hz: int = 64
+    # How much data to use from each gamer
+    max_hours_per_gamer: float = 4.0
 
-    limit_hours: float = 4.0
+    # Sequence construction
+    seq_len: int = 200          # input sequence length (timesteps)
+    pred_len: int = 1           # how many future steps to predict (1 = next-step)
 
-    window_seconds: int = 30           # length of each sequence in seconds
-    window_overlap_seconds: int = 0
+    # Train/val/test split (on sequences)
+    train_frac: float = 0.7
+    val_frac: float = 0.15      # remainder goes to test
 
-    labeling_strategy: str = "dummy_time_based"
+    # File patterns (adjust if your filenames differ)
+    ppg_pattern: str = "gamer{gamer_id}-ppg-*.csv"
+    annotations_pattern: str = "gamer{gamer_id}-annotations.csv"
 
-    num_classes: int = 3               # e.g. {0: alert, 1: medium, 2: tired}
+    # Normalization options
+    normalize_signal: bool = True
+    normalization_mode: str = "zscore"  # or "minmax"
 
-    # Train/val/test split (fractions of windows)
-    train_fraction: float = 0.6
-    val_fraction: float = 0.2
-    test_fraction: float = 0.2
 
-    # Sanity check: we want fractions to add up to ~1
-    def check_splits(self):
-        total = self.train_fraction + self.val_fraction + self.test_fraction
-        if abs(total - 1.0) > 1e-6:
-            raise ValueError(f"Train/val/test fractions must sum to 1. Got {total}.")
-        
 @dataclass
 class ModelConfig:
-    # RNN type: "lstm" or "gru"
-    rnn_type: str = "lstm"
-
-    input_size: int = 1        # 1 feature: raw PPG value
+    model_type: str = "rnn"     # "rnn", "lstm", "gru"
+    input_size: int = 1         # PPG is a single channel
     hidden_size: int = 64
     num_layers: int = 1
-    bidirectional: bool = True
+    dropout: float = 0.0
+    bidirectional: bool = False
 
-    # Fully connected head
-    fc_hidden_size: int = 64
-    dropout: float = 0.3
+    # Output settings
+    output_size: int = 1        # 1 for regression (next-step / score)
 
-    # Output settings (for classification)
-    num_classes: int = 3       # should match DataConfig.num_classes
 
 @dataclass
-class TrainConfig:
+class TrainingConfig:
+    num_epochs: int = 50
     batch_size: int = 64
-    num_epochs: int = 20
     learning_rate: float = 1e-3
-    weight_decay: float = 0.0       # L2 regularization
-    gradient_clip: float = 5.0      # to avoid exploding gradients, set None to disable
+    weight_decay: float = 0.0
 
-    # Random seeds for reproducibility
+    # Logging / saving
+    print_every: int = 10
+    save_best_model: bool = True
+    early_stopping_patience: int = 10
+
+    # Reproducibility
     seed: int = 42
 
-    # Device preference: "cuda" or "cpu"
-    device: str = "cuda"  # will automatically fall back to CPU if CUDA is not available
 
 @dataclass
 class Config:
     data: DataConfig = DataConfig()
     model: ModelConfig = ModelConfig()
-    train: TrainConfig = TrainConfig()
+    training: TrainingConfig = TrainingConfig()
 
-config = Config()
+    device: str = "cuda" if torch.cuda.is_available() else "cpu"
 
-if __name__ == "__main__":
-    # Quick manual check:
-    print("Project root:", PROJECT_ROOT)
-    print("Raw CSV path:", RAW_CSV_PATH)
-    config.data.check_splits()
-    print("Config OK.")
+    def to_dict(self):
+        # Helpful if you want to log/print all settings
+        d = asdict(self)
+        d["PROJECT_ROOT"] = str(PROJECT_ROOT)
+        d["DATA_DIR"] = str(DATA_DIR)
+        d["CHECKPOINT_DIR"] = str(CHECKPOINT_DIR)
+        d["PLOTS_DIR"] = str(PLOTS_DIR)
+        return d
+
+
+# This is what you'll import from other files:
+cfg = Config()
+

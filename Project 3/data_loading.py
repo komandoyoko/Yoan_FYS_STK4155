@@ -1,136 +1,265 @@
+# data_loading.py
+
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Optional
 
 import numpy as np
 import pandas as pd
 
-from config import config, RAW_CSV_PATH
+from config import DATA_DIR, cfg
 
 
-def _infer_sample_rate_from_timestamps(
-    timestamps: pd.Series,
-) -> float:
+# -----------------------------------------------------------
+# Helpers to find files
+# -----------------------------------------------------------
+
+def list_ppg_files_for_gamer(
+    gamer_id: int,
+    data_dir: Path = DATA_DIR,
+) -> List[Path]:
     """
-    Infer sample rate in Hz from a datetime-like pandas Series.
+    Return a sorted list of PPG CSV files for a given gamer.
 
-    We compute the median difference between consecutive timestamps and
-    invert it to get samples per second. This assumes fairly regular sampling.
+    Uses the pattern from cfg.data.ppg_pattern, e.g. "gamer{gamer_id}-ppg-*.csv".
     """
-    # Convert to ns (int64), then differences
-    diffs = timestamps.sort_values().view("int64").diff().dropna()
-    if diffs.empty:
-        raise ValueError("Not enough timestamps to infer sample rate.")
+    pattern = cfg.data.ppg_pattern.format(gamer_id=gamer_id)
+    files = sorted(data_dir.glob(pattern))
+    if not files:
+        raise FileNotFoundError(
+            f"No PPG files found for gamer {gamer_id} in {data_dir} "
+            f"with pattern '{pattern}'"
+        )
+    return files
 
-    median_diff_ns = diffs.median()
-    # seconds between samples
-    seconds_per_sample = median_diff_ns / 1e9
-    if seconds_per_sample <= 0:
-        raise ValueError(f"Invalid time differences; got {seconds_per_sample} seconds per sample.")
 
-    sample_rate_hz = 1.0 / seconds_per_sample
-    return float(sample_rate_hz)
+def annotations_file_for_gamer(
+    gamer_id: int,
+    data_dir: Path = DATA_DIR,
+) -> Path:
+    """
+    Return the annotations CSV path for a given gamer.
+    """
+    pattern = cfg.data.annotations_pattern.format(gamer_id=gamer_id)
+    files = sorted(data_dir.glob(pattern))
+    if not files:
+        raise FileNotFoundError(
+            f"No annotations file found for gamer {gamer_id} in {data_dir} "
+            f"with pattern '{pattern}'"
+        )
+    if len(files) > 1:
+        # Shouldn't normally happen, but be explicit
+        raise RuntimeError(
+            f"Multiple annotations files found for gamer {gamer_id}: {files}"
+        )
+    return files[0]
 
-def _limit_by_hours_with_timestamps(
-    df: pd.DataFrame,
-    timestamp_col: str,
-    limit_hours: float,
+
+# -----------------------------------------------------------
+# Core loading functions
+# -----------------------------------------------------------
+
+def _extract_date_from_ppg_filename(path: Path) -> str:
+    """
+    From 'gamer1-ppg-2000-01-01.csv' -> '2000-01-01'
+    """
+    parts = path.stem.split("-")  # ['gamer1', 'ppg', '2000', '01', '01']
+    if len(parts) < 5:
+        raise ValueError(f"Unexpected PPG filename format: {path.name}")
+    return "-".join(parts[-3:])   # '2000-01-01'
+
+
+def load_ppg_dataframe_for_gamer(
+    gamer_id: int,
+    max_hours: Optional[float] = None,
+    data_dir: Path = DATA_DIR,
 ) -> pd.DataFrame:
     """
-    Keep only the first `limit_hours` hours of data based on the timestamp column.
-    """
-    df = df.sort_values(timestamp_col)
-    start_time = df[timestamp_col].iloc[0]
-    end_time = start_time + pd.Timedelta(hours=limit_hours)
-    mask = (df[timestamp_col] >= start_time) & (df[timestamp_col] < end_time)
-    return df.loc[mask].copy()
+    Load and concatenate all PPG CSVs for a gamer into a single DataFrame.
 
-def _limit_by_hours_with_fixed_sr(
-    df: pd.DataFrame,
-    limit_hours: float,
-    sample_rate_hz: float,
+    - Parses 'Time' strings and attaches the date inferred from filename.
+    - Combines all days, sorts by datetime.
+    - Optionally trims to the first `max_hours` of data starting from the
+      earliest timestamp.
+
+    Returns a DataFrame with at least columns:
+        ['datetime', 'Time', 'Red_Signal', ...]
+    """
+    ppg_files = list_ppg_files_for_gamer(gamer_id, data_dir=data_dir)
+
+    dfs = []
+    for path in ppg_files:
+        df = pd.read_csv(path)
+
+        if "Time" not in df.columns or "Red_Signal" not in df.columns:
+            raise ValueError(
+                f"Expected columns 'Time' and 'Red_Signal' in {path}, "
+                f"got {df.columns.tolist()}"
+            )
+
+        date_str = _extract_date_from_ppg_filename(path)
+        # Combine date from filename with time-of-day in the CSV
+        dt_str = date_str + " " + df["Time"].astype(str)
+        df["datetime"] = pd.to_datetime(dt_str)
+
+        dfs.append(df)
+
+    full = pd.concat(dfs, axis=0, ignore_index=True)
+    full = full.sort_values("datetime").reset_index(drop=True)
+
+    # Trim to first `max_hours` if requested
+    if max_hours is not None:
+        start = full["datetime"].min()
+        cutoff = start + pd.Timedelta(hours=max_hours)
+        full = full[full["datetime"] <= cutoff].copy().reset_index(drop=True)
+
+    return full
+
+
+def load_annotations_for_gamer(
+    gamer_id: int,
+    data_dir: Path = DATA_DIR,
 ) -> pd.DataFrame:
     """
-    Keep only the first N samples that correspond to `limit_hours`, assuming
-    a known and constant sample rate.
+    Load annotations (e.g., Stanford Sleepiness scores) for a gamer.
+
+    Returns DataFrame with at least:
+        ['Datetime', 'Event', 'Value', 'datetime']
     """
-    total_seconds = limit_hours * 60.0 * 60.0
-    n_samples = int(sample_rate_hz * total_seconds)
-    return df.iloc[:n_samples].copy()
+    path = annotations_file_for_gamer(gamer_id, data_dir=data_dir)
+    df = pd.read_csv(path)
 
-def load_ppg(
-    csv_path: Path = RAW_CSV_PATH,
-) -> Tuple[np.ndarray, Optional[pd.Series], float, Dict[str, Any]]:
-
-    data_cfg = config.data
-
-    if not csv_path.exists():
-        raise FileNotFoundError(f"CSV file not found: {csv_path}")
-
-    print(f"[data_loading] Reading CSV from: {csv_path}")
-    df = pd.read_csv(csv_path)
-
-    # Basic checks
-    if data_cfg.ppg_col not in df.columns:
+    if "Datetime" not in df.columns:
         raise ValueError(
-            f"PPG column '{data_cfg.ppg_col}' not found in CSV. "
-            f"Available columns: {list(df.columns)}"
+            f"Expected column 'Datetime' in {path}, got {df.columns.tolist()}"
         )
 
-    has_timestamp = data_cfg.timestamp_col is not None and data_cfg.timestamp_col in df.columns
+    df["datetime"] = pd.to_datetime(df["Datetime"])
+    return df
 
-    timestamps: Optional[pd.Series] = None
-    sample_rate_hz: float
 
-    if has_timestamp:
-        # Parse timestamps
-        print(f"[data_loading] Using timestamp column: {data_cfg.timestamp_col}")
-        df[data_cfg.timestamp_col] = pd.to_datetime(df[data_cfg.timestamp_col], errors="coerce")
-        # Drop rows with invalid timestamps
-        df = df.dropna(subset=[data_cfg.timestamp_col])
+# -----------------------------------------------------------
+# Convenience: get PPG signal as numpy (with optional normalization)
+# -----------------------------------------------------------
 
-        if df.empty:
-            raise ValueError("All timestamps are NaT after parsing. Check the timestamp format.")
+def normalize_signal_array(
+    x: np.ndarray,
+    mode: str = "zscore",
+) -> Tuple[np.ndarray, Dict[str, float]]:
+    """
+    Normalize a 1D signal according to the given mode.
 
-        # Limit by hours
-        df = _limit_by_hours_with_timestamps(df, data_cfg.timestamp_col, data_cfg.limit_hours)
+    Returns:
+        normalized_x, stats_dict
+    """
+    x = x.astype("float32")
+    stats: Dict[str, float] = {}
 
-        if df.empty:
-            raise ValueError("No data remains after limiting to the given number of hours.")
+    if mode == "zscore":
+        mean = float(x.mean())
+        std = float(x.std())
+        if std == 0.0:
+            std = 1.0
+        x_norm = (x - mean) / std
+        stats = {"mean": mean, "std": std}
 
-        # Infer sample rate
-        sample_rate_hz = _infer_sample_rate_from_timestamps(df[data_cfg.timestamp_col])
-        timestamps = df[data_cfg.timestamp_col].reset_index(drop=True)
-
-        print(f"[data_loading] Inferred sample rate: {sample_rate_hz:.2f} Hz")
+    elif mode == "minmax":
+        min_val = float(x.min())
+        max_val = float(x.max())
+        if max_val == min_val:
+            x_norm = x - min_val
+        else:
+            x_norm = (x - min_val) / (max_val - min_val)
+        stats = {"min": min_val, "max": max_val}
 
     else:
-        # No timestamp column: we assume a fixed sample rate from config
-        sample_rate_hz = float(data_cfg.sample_rate_hz)
-        print(
-            "[data_loading] No valid timestamp column found. "
-            f"Using fixed sample rate from config: {sample_rate_hz:.2f} Hz"
+        raise ValueError(f"Unknown normalization mode: {mode!r}")
+
+    return x_norm.astype("float32"), stats
+
+
+def load_ppg_signal_for_gamer(
+    gamer_id: int,
+    max_hours: Optional[float] = None,
+    normalize: Optional[bool] = None,
+    data_dir: Path = DATA_DIR,
+) -> Tuple[np.ndarray, np.ndarray, Optional[Dict[str, float]]]:
+    """
+    High-level helper:
+
+    - Loads PPG dataframe for the gamer (optionally limited to `max_hours`)
+    - Extracts the 'Red_Signal' column as a 1D float32 array.
+    - Optionally normalizes it according to cfg.data.normalization_mode.
+    - Returns (signal, timestamps, stats)
+
+    Where:
+        signal    : np.ndarray of shape (T,)
+        timestamps: np.ndarray of dtype datetime64[ns] of shape (T,)
+        stats     : dict with normalization parameters, or None
+    """
+    if normalize is None:
+        normalize = cfg.data.normalize_signal
+
+    df = load_ppg_dataframe_for_gamer(
+        gamer_id=gamer_id,
+        max_hours=max_hours,
+        data_dir=data_dir,
+    )
+
+    signal = df["Red_Signal"].astype("float32").to_numpy()
+    timestamps = df["datetime"].to_numpy()
+    stats: Optional[Dict[str, float]] = None
+
+    if normalize:
+        signal, stats = normalize_signal_array(
+            signal,
+            mode=cfg.data.normalization_mode,
         )
 
-        df = _limit_by_hours_with_fixed_sr(df, data_cfg.limit_hours, sample_rate_hz)
+    return signal, timestamps, stats
 
-        if df.empty:
-            raise ValueError("No data remains after limiting to the given number of hours.")
 
-    # Extract PPG signal
-    ppg = df[data_cfg.ppg_col].astype("float32").to_numpy()
+# -----------------------------------------------------------
+# Convenience: load all gamers at once
+# -----------------------------------------------------------
 
-    if ppg.ndim != 1:
-        raise ValueError("Expected PPG column to be 1D.")
+def load_all_gamers_ppg(
+    gamer_ids: Optional[List[int]] = None,
+    max_hours_per_gamer: Optional[float] = None,
+    data_dir: Path = DATA_DIR,
+) -> Dict[int, Dict[str, object]]:
+    """
+    Load PPG for multiple gamers.
 
-    info: Dict[str, Any] = {
-        "csv_path": str(csv_path),
-        "n_samples": int(len(ppg)),
-        "limit_hours": float(data_cfg.limit_hours),
-        "timestamp_used": has_timestamp,
-    }
+    Returns a dict:
+        {
+          gamer_id: {
+            "signal": np.ndarray (T,),
+            "timestamps": np.ndarray (T,),
+            "stats": dict or None,
+          },
+          ...
+        }
+    """
+    if gamer_ids is None:
+        gamer_ids = list(cfg.data.gamer_ids)
 
-    print(f"[data_loading] Loaded {info['n_samples']} samples after trimming.")
+    if max_hours_per_gamer is None:
+        max_hours_per_gamer = cfg.data.max_hours_per_gamer
 
-    return ppg, timestamps, sample_rate_hz, info
+    out: Dict[int, Dict[str, object]] = {}
+
+    for gid in gamer_ids:
+        sig, ts, stats = load_ppg_signal_for_gamer(
+            gamer_id=gid,
+            max_hours=max_hours_per_gamer,
+            data_dir=data_dir,
+        )
+        out[gid] = {
+            "signal": sig,
+            "timestamps": ts,
+            "stats": stats,
+        }
+
+    return out
