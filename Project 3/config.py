@@ -22,7 +22,7 @@ for d in [CHECKPOINT_DIR, PLOTS_DIR]:
 @dataclass
 class DataConfig:
     # Which gamer´s data to use
-    gamer_ids: tuple = (1, 2, 3, 4, 5)
+    gamer_ids: tuple = (1, 2)
 
     # How much data to use from each gamer
     max_hours_per_gamer: float = 4.0
@@ -30,6 +30,8 @@ class DataConfig:
     # Sequence construction
     seq_len: int = 200          # input sequence length (timesteps)
     pred_len: int = 1           # how many future steps to predict (1 = next-step)
+
+    label_type: str = "sleepiness"
 
     # Train/val/test split (on sequences)
     train_frac: float = 0.7
@@ -54,12 +56,12 @@ class ModelConfig:
     bidirectional: bool = False
 
     # Output settings
-    output_size: int = 1        # 1 for regression (next-step / score)
+    output_size: int = 7        # 1 for regression (next-step / score)
 
 
 @dataclass
 class TrainingConfig:
-    num_epochs: int = 50
+    num_epochs: int = 30
     batch_size: int = 64
     learning_rate: float = 1e-3
     weight_decay: float = 0.0

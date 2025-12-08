@@ -1,4 +1,9 @@
-# train.py
+from datasets import (
+    create_ppg_sequence_datasets,
+    create_sleepiness_datasets,
+    SplitDatasets,
+)
+
 
 from __future__ import annotations
 
@@ -147,14 +152,25 @@ def train() -> Dict[str, Any]:
     set_seed(cfg.training.seed)
 
     # 1. Datasets & loaders
-    splits = create_ppg_sequence_datasets()
+    if cfg.data.label_type == "sleepiness":
+        splits = create_sleepiness_datasets()
+
+    else:
+        splits = create_ppg_sequence_datasets()
+
     loaders = make_dataloaders(splits)
 
     # 2. Model, loss, optimizer
     device = cfg.device
+    sequence_output = (
+        cfg.data.pred_len > 1 and cfg.data.label_type != "sleepiness"
+    )
     model = build_model(sequence_output=(cfg.data.pred_len > 1))
 
-    criterion = nn.MSELoss()
+    if cfg.data.label_type == "sleepiness":
+        criterion = nn.CrossEntropyLoss()
+    else:
+        criterion = nn.MSELoss()
     optimizer = optim.Adam(
         model.parameters(),
         lr=cfg.training.learning_rate,

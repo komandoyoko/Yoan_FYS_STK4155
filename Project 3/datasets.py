@@ -212,3 +212,103 @@ def create_ppg_sequence_datasets(
         val=val_ds,
         test=test_ds,
     )
+class PPGLabeledSleepinessDataset(Dataset):
+    """
+    PPG window -> sleepiness label (classification).
+
+    X: (N, seq_len, 1)
+    y: (N,) integer in {0..6}
+    """
+    def __init__(self, X: np.ndarray, y: np.ndarray):
+        super().__init__()
+
+        if X.ndim != 3:
+            raise ValueError(f"X must have shape (N, seq_len, 1), got {X.shape}")
+        if y.ndim != 1:
+            raise ValueError(f"y must have shape (N,), got {y.shape}")
+
+        self.X = torch.from_numpy(X.astype("float32"))
+        self.y = torch.from_numpy(y.astype("int64"))  # for CrossEntropyLoss
+
+    def __len__(self) -> int:
+        return self.X.shape[0]
+
+    def __getitem__(self, idx: int):
+        return self.X[idx], self.y[idx]
+
+from data_loading import build_ppg_windows_with_sleepiness_for_gamer
+
+def create_sleepiness_datasets(
+    gamer_ids: Optional[List[int]] = None,
+    seq_len: Optional[int] = None,
+    max_hours_per_gamer: Optional[float] = None,
+    train_frac: Optional[float] = None,
+    val_frac: Optional[float] = None,
+    shuffle: bool = True,
+    seed: Optional[int] = None,
+) -> SplitDatasets:
+    """
+    Build sleepiness-labeled datasets:
+
+    Each sample:
+        X: PPG window of length seq_len before an annotation
+        y: sleepiness class 0..6
+
+    Splits into train/val/test.
+    """
+    if gamer_ids is None:
+        gamer_ids = list(cfg.data.gamer_ids)
+    if seq_len is None:
+        seq_len = cfg.data.seq_len
+    if max_hours_per_gamer is None:
+        max_hours_per_gamer = cfg.data.max_hours_per_gamer
+    if train_frac is None:
+        train_frac = cfg.data.train_frac
+    if val_frac is None:
+        val_frac = cfg.data.val_frac
+    if seed is None:
+        seed = cfg.training.seed
+
+    X_list = []
+    y_list = []
+
+    for gid in gamer_ids:
+        Xg, yg = build_ppg_windows_with_sleepiness_for_gamer(
+            gamer_id=gid,
+            seq_len=seq_len,
+            max_hours=max_hours_per_gamer,
+        )
+        X_list.append(Xg)
+        y_list.append(yg)
+
+    X = np.concatenate(X_list, axis=0)  # (N, seq_len, 1)
+    y = np.concatenate(y_list, axis=0)  # (N,)
+
+    N = X.shape[0]
+
+    rng = np.random.RandomState(seed)
+    indices = np.arange(N)
+    if shuffle:
+        rng.shuffle(indices)
+
+    n_train = int(train_frac * N)
+    n_val = int(val_frac * N)
+    n_test = N - n_train - n_val
+
+    train_idx = indices[:n_train]
+    val_idx = indices[n_train : n_train + n_val]
+    test_idx = indices[n_train + n_val :]
+
+    X_train, y_train = X[train_idx], y[train_idx]
+    X_val, y_val = X[val_idx], y[val_idx]
+    X_test, y_test = X[test_idx], y[test_idx]
+
+    train_ds = PPGLabeledSleepinessDataset(X_train, y_train)
+    val_ds = PPGLabeledSleepinessDataset(X_val, y_val)
+    test_ds = PPGLabeledSleepinessDataset(X_test, y_test)
+
+    return SplitDatasets(
+        train=train_ds,
+        val=val_ds,
+        test=test_ds,
+    )

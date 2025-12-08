@@ -263,3 +263,86 @@ def load_all_gamers_ppg(
         }
 
     return out
+
+def build_ppg_windows_with_sleepiness_for_gamer(
+    gamer_id: int,
+    seq_len: int,
+    max_hours: Optional[float] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    For one gamer:
+
+    - Load PPG (optionally limited to max_hours)
+    - Load annotations
+    - For each Stanford Sleepiness assessment:
+        - take the last `seq_len` PPG samples before that time
+        - label = sleepiness score (1–7) → class 0–6
+
+    Returns:
+        X: (N, seq_len, 1)  normalized PPG windows
+        y: (N,)             int labels in {0..6}
+    """
+    if max_hours is None:
+        max_hours = cfg.data.max_hours_per_gamer
+
+    # 1) PPG with datetime
+    ppg_df = load_ppg_dataframe_for_gamer(
+        gamer_id=gamer_id,
+        max_hours=max_hours,
+    )
+
+    # Normalize the whole Red_Signal column first
+    sig = ppg_df["Red_Signal"].astype("float32").to_numpy()
+    if cfg.data.normalize_signal:
+        sig, _ = normalize_signal_array(
+            sig,
+            mode=cfg.data.normalization_mode,
+        )
+    ppg_df = ppg_df.copy()
+    ppg_df["ppg_norm"] = sig
+
+    # 2) Annotations
+    ann_df = load_annotations_for_gamer(gamer_id)
+
+    # Keep only Stanford Sleepiness events
+    mask = ann_df["Event"] == "Stanford Sleepiness Self-Assessment (1-7)"
+    ann_ss = ann_df[mask].copy()
+
+    X_list = []
+    y_list = []
+
+    for _, row in ann_ss.iterrows():
+        t_ann = row["datetime"]
+
+        # Some annotation rows might have non-numeric 'Value' (e.g., other events)
+        try:
+            score = int(row["Value"])  # 1..7
+        except (ValueError, TypeError):
+            continue
+
+        # PPG up to this time
+        p_before = ppg_df[ppg_df["datetime"] <= t_ann]
+        if len(p_before) < seq_len:
+            # not enough context before this annotation
+            continue
+
+        window = p_before.iloc[-seq_len:]
+        x_win = window["ppg_norm"].to_numpy().astype("float32")  # (seq_len,)
+
+        X_list.append(x_win)
+        # Convert to 0..6 for classification
+        y_list.append(score - 1)
+
+    if not X_list:
+        raise RuntimeError(
+            f"No valid PPG windows found for gamer {gamer_id} "
+            f"with seq_len={seq_len}."
+        )
+
+    X = np.stack(X_list, axis=0)  # (N, seq_len)
+    y = np.array(y_list, dtype="int64")  # (N,)
+
+    # Add feature dimension
+    X = X[..., None]  # (N, seq_len, 1)
+
+    return X, y

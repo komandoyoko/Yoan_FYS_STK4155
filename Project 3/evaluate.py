@@ -1,4 +1,5 @@
-# evaluate.py
+from datasets import create_ppg_sequence_datasets, create_sleepiness_datasets
+
 
 from __future__ import annotations
 
@@ -186,22 +187,14 @@ def plot_sequence_prediction_example(
 # -----------------------------------------------------------
 
 def evaluate_model() -> Dict[str, Any]:
-    """
-    Full evaluation pipeline:
-
-    - set seed
-    - rebuild datasets and dataloaders
-    - load best saved model
-    - collect predictions on test set
-    - print MSE on test set
-
-    Returns:
-        dict with 'test_mse', 'preds', 'targets'.
-    """
     set_seed(cfg.training.seed)
 
     # 1. Datasets & loaders
-    splits = create_ppg_sequence_datasets()
+    if cfg.data.label_type == "sleepiness":
+        splits = create_sleepiness_datasets()
+    else:
+        splits = create_ppg_sequence_datasets()
+
     loaders = make_dataloaders(splits)
 
     # 2. Model
@@ -215,11 +208,34 @@ def evaluate_model() -> Dict[str, Any]:
         device=device,
     )
 
-    # 4. Compute MSE
-    mse = float(np.mean((preds - targets) ** 2))
-    print(f"Test MSE (from evaluate.py): {mse:.6f}")
+    if cfg.data.label_type == "sleepiness":
+        # classification: preds are logits (N,7), targets are class indices (N,)
+        # Convert to class predictions
+        if preds.ndim != 2:
+            preds_flat = preds.reshape(preds.shape[0], -1)
+        else:
+            preds_flat = preds
 
-    return {"test_mse": mse, "preds": preds, "targets": targets}
+        y_pred = np.argmax(preds_flat, axis=1)
+        y_true = targets.reshape(-1).astype(int)
+
+        acc = float((y_pred == y_true).mean())
+        print(f"Test accuracy (sleepiness): {acc:.4f}")
+        metric_name = "accuracy"
+        metric_value = acc
+    else:
+        # regression: MSE
+        mse = float(np.mean((preds - targets) ** 2))
+        print(f"Test MSE (from evaluate.py): {mse:.6f}")
+        metric_name = "mse"
+        metric_value = mse
+
+    return {
+        f"test_{metric_name}": metric_value,
+        "preds": preds,
+        "targets": targets,
+    }
+
 
 
 # -----------------------------------------------------------
