@@ -1,6 +1,6 @@
 # config.py
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from pathlib import Path
 import torch
 
@@ -22,7 +22,7 @@ for d in [CHECKPOINT_DIR, PLOTS_DIR]:
 @dataclass
 class DataConfig:
     # Which gamer´s data to use
-    gamer_ids: tuple = (1, 2)
+    gamer_ids: tuple = (1, 2, 3, 4, 5)
 
     # How much data to use from each gamer
     max_hours_per_gamer: float = 4.0
@@ -77,20 +77,20 @@ class TrainingConfig:
 
 @dataclass
 class Config:
-    data: DataConfig = DataConfig()
-    model: ModelConfig = ModelConfig()
-    training: TrainingConfig = TrainingConfig()
+    data: DataConfig = field(default_factory=DataConfig)
+    model: ModelConfig = field(default_factory=ModelConfig)
+    training: TrainingConfig = field(default_factory=TrainingConfig)
 
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
 
     def to_dict(self):
-        # Helpful if you want to log/print all settings
         d = asdict(self)
         d["PROJECT_ROOT"] = str(PROJECT_ROOT)
         d["DATA_DIR"] = str(DATA_DIR)
         d["CHECKPOINT_DIR"] = str(CHECKPOINT_DIR)
         d["PLOTS_DIR"] = str(PLOTS_DIR)
         return d
+
 
 
 # This is what you'll import from other files:

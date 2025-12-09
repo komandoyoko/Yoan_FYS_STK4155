@@ -1,16 +1,15 @@
-from datasets import (
-    create_ppg_sequence_datasets,
-    create_sleepiness_datasets,
-    SplitDatasets,
-)
-
-
 from __future__ import annotations
 
 import os
 import random
 from pathlib import Path
 from typing import Dict, Any
+
+from datasets import (
+    create_ppg_sequence_datasets,
+    create_sleepiness_datasets,
+    SplitDatasets,
+)
 
 import numpy as np
 import torch

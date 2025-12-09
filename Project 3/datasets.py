@@ -273,13 +273,22 @@ def create_sleepiness_datasets(
     y_list = []
 
     for gid in gamer_ids:
-        Xg, yg = build_ppg_windows_with_sleepiness_for_gamer(
-            gamer_id=gid,
-            seq_len=seq_len,
-            max_hours=max_hours_per_gamer,
-        )
-        X_list.append(Xg)
-        y_list.append(yg)
+        try:
+            Xg, yg = build_ppg_windows_with_sleepiness_for_gamer(
+                gamer_id=gid,
+                seq_len=seq_len,
+                max_hours=max_hours_per_gamer,
+            )
+            print(f"INFO: gamer {gid} -> {Xg.shape[0]} samples")
+            X_list.append(Xg)
+            y_list.append(yg)
+        except RuntimeError as e:
+            # If a gamer has no usable windows, we just skip them
+            print(f"WARNING: skipping gamer {gid}: {e}")
+            continue
+
+    if not X_list:
+        raise RuntimeError("No valid sleepiness samples found for any gamer.")
 
     X = np.concatenate(X_list, axis=0)  # (N, seq_len, 1)
     y = np.concatenate(y_list, axis=0)  # (N,)
