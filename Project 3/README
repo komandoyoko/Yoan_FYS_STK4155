@@ -1,1 +1,57 @@
-kommer snart
+# FYS-STK4155 Project 3 – Recurrent Neural Networks for Sleepiness Prediction from PPG  
+**Candidate:** Yoan Tutunarov  
+
+## Description  
+
+This repository contains the code and report for **Project 3** in FYS-STK4155 – Machine Learning and Data Analysis.
+
+The goal of the project is to predict **subjective sleepiness levels** (Stanford Sleepiness Scale 1–7) from raw **ear-PPG (photoplethysmography)** signals using recurrent neural networks. The data are based on the **“5-Gamer” fatigue dataset**, where five participants completed extended gaming sessions with continuous PPG monitoring and hourly self-reported sleepiness scores.
+
+Instead of extracting handcrafted physiological features (e.g. heart rate variability), the project takes an **end-to-end deep learning approach**, using short windows of normalized PPG as input to:
+
+- a vanilla **RNN**  
+- an **LSTM** (Long Short–Term Memory network)  
+- a **GRU** (Gated Recurrent Unit)
+
+The main focus is on:
+
+- Comparing architectures (RNN vs LSTM vs GRU)  
+- Studying the effect of **hidden size** on performance  
+- Studying the effect of **sequence length** (temporal context) on performance  
+- Analysing performance via **accuracy**, **confusion matrices**, **per-class accuracy**, and **learning curves**
+
+All results and figures are documented in the accompanying LaTeX report.
+
+---
+
+## Repository structure  
+
+The relevant files for Project 3 are organized as follows:
+
+```text
+Project 3/
+│
+├── data/                          # (Optional) Raw and/or preprocessed 5-Gamer PPG & annotation files
+│
+├── plots/                         # All generated figures and experiment summary
+│   ├── label_distribution.png
+│   ├── example_windows_per_class.png
+│   ├── learning_curves.png
+│   ├── confusion_matrix.png
+│   ├── per_class_accuracy.png
+│   ├── true_vs_predicted_over_test_index.png
+│   ├── arch_comparison_accuracy.png
+│   ├── hidden_size_comparison_accuracy.png
+│   ├── seq_len_comparison_accuracy.png
+│   └── experiments_summary.npz    # Saved metrics from experiment sweep
+│
+├── train.py                       # Trains a single baseline model (e.g. LSTM with default H and T)
+├── experiments.py                 # Runs systematic experiments over architectures / hidden sizes / seq lengths
+├── plots.py                       # Regenerates all plots from saved results and experiment summary
+│
+├── utils_dataset.py (optional)    # PPG loading, preprocessing, and windowing logic (if separated)
+├── models.py (optional)           # Model definitions (RNN, LSTM, GRU) if factored out
+│
+├── report.tex                     # LaTeX source for the final project report
+├── references.bib                 # Bibliography for the report
+└── README.md                      # Project overview and usage instructions
