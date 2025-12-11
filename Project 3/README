@@ -54,6 +54,7 @@ Project 3/
 ├── datasets.py                    # Constructing and building datasets
 │
 ├── report.pdf                     # LaTeX source for the final project report
+├── reference.BibTex               # Just for the sources
 ├── project3_description.ipynb     # Just description of the project
 ├── references.bib                 # Bibliography for the report
 └── README.md                      # Project overview and usage instructions
