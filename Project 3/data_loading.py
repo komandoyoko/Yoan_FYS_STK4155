@@ -49,7 +49,7 @@ def annotations_file_for_gamer(
             f"with pattern '{pattern}'"
         )
     if len(files) > 1:
-        # Shouldn't normally happen, but be explicit
+        # For explicity
         raise RuntimeError(
             f"Multiple annotations files found for gamer {gamer_id}: {files}"
         )
@@ -373,6 +373,6 @@ def build_ppg_windows_with_sleepiness_for_gamer(
     y = np.array(y_list, dtype="int64") # (N,)
 
     # Add feature dimension
-    X = X[..., None]  # (N, seq_len, 1)
+    X = X[..., None]  
 
     return X, y

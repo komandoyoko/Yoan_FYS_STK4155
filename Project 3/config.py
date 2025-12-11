@@ -13,14 +13,14 @@ class DataConfig:
     # Use all gamers
     gamer_ids: tuple = (1, 2, 3, 4, 5)
 
-    # Use FULL data per gamer (None) – your PC can handle it
-    max_hours_per_gamer: float | None = None   # None => no trimming
+    # Use FULL data per gamer (None)
+    max_hours_per_gamer: float | None = None   
 
     # Sequence construction (length in *samples*)
     seq_len: int = 200          # window length
     pred_len: int = 1           # unused for sleepiness, but keep for flexibility
 
-    # We are doing sleepiness prediction
+    # doing sleepiness prediction
     label_type: str = "sleepiness"
 
     # Sliding windows around each annotation
@@ -84,6 +84,6 @@ class Config:
 
 
 
-# This is what you'll import from other files:
+# This is what is imported from other files:
 cfg = Config()
 
