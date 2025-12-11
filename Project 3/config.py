@@ -1,78 +1,69 @@
-# config.py
-
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
 import torch
-
-
-# ---------- Paths ----------
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 DATA_DIR = PROJECT_ROOT / "data"
 CHECKPOINT_DIR = PROJECT_ROOT / "checkpoints"
 PLOTS_DIR = PROJECT_ROOT / "plots"
 
-# Create dirs if they don't exist (safe to import everywhere)
-for d in [CHECKPOINT_DIR, PLOTS_DIR]:
-    d.mkdir(parents=True, exist_ok=True)
-
-
-# ---------- Core configuration objects ----------
 
 @dataclass
 class DataConfig:
-    # Which gamer´s data to use
+    # Use all gamers
     gamer_ids: tuple = (1, 2, 3, 4, 5)
 
-    # How much data to use from each gamer
-    max_hours_per_gamer: float = 4.0
+    # Use FULL data per gamer (None) – your PC can handle it
+    max_hours_per_gamer: float | None = None   # None => no trimming
 
-    # Sequence construction
-    seq_len: int = 200          # input sequence length (timesteps)
-    pred_len: int = 1           # how many future steps to predict (1 = next-step)
+    # Sequence construction (length in *samples*)
+    seq_len: int = 200          # window length
+    pred_len: int = 1           # unused for sleepiness, but keep for flexibility
 
+    # We are doing sleepiness prediction
     label_type: str = "sleepiness"
 
-    # Train/val/test split (on sequences)
-    train_frac: float = 0.7
-    val_frac: float = 0.15      # remainder goes to test
+    # Sliding windows around each annotation
+    backward_minutes: float = 10.0          # how far back from annotation we look
+    window_stride_fraction: float = 0.5     # 0.5 => 50% overlap
 
-    # File patterns (adjust if your filenames differ)
+    # Train/val/test split
+    train_frac: float = 0.7
+    val_frac: float = 0.15
+
+    # Filename patterns (still used by loader)
     ppg_pattern: str = "gamer{gamer_id}-ppg-*.csv"
     annotations_pattern: str = "gamer{gamer_id}-annotations.csv"
 
-    # Normalization options
     normalize_signal: bool = True
-    normalization_mode: str = "zscore"  # or "minmax"
+    normalization_mode: str = "zscore"
+
 
 
 @dataclass
 class ModelConfig:
-    model_type: str = "rnn"     # "rnn", "lstm", "gru"
-    input_size: int = 1         # PPG is a single channel
+    model_type: str = "lstm"   # "rnn" or "gru" also fine
+    input_size: int = 1
     hidden_size: int = 64
     num_layers: int = 1
-    dropout: float = 0.0
+    dropout: float = 0.1
     bidirectional: bool = False
 
-    # Output settings
-    output_size: int = 7        # 1 for regression (next-step / score)
+    # 7 classes: sleepiness 1–7
+    output_size: int = 7
 
 
 @dataclass
 class TrainingConfig:
-    num_epochs: int = 30
-    batch_size: int = 64
+    batch_size: int = 128
+    num_epochs: int = 40
     learning_rate: float = 1e-3
     weight_decay: float = 0.0
-
-    # Logging / saving
-    print_every: int = 10
+    early_stopping_patience: int = 6
+    print_every: int = 1
     save_best_model: bool = True
-    early_stopping_patience: int = 10
-
-    # Reproducibility
     seed: int = 42
+
 
 
 @dataclass

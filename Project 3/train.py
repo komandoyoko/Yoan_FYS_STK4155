@@ -5,19 +5,17 @@ import random
 from pathlib import Path
 from typing import Dict, Any
 
-from datasets import (
-    create_ppg_sequence_datasets,
-    create_sleepiness_datasets,
-    SplitDatasets,
-)
-
 import numpy as np
 import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
 
 from config import cfg, CHECKPOINT_DIR
-from datasets import create_ppg_sequence_datasets, SplitDatasets
+from datasets import (
+    create_ppg_sequence_datasets,
+    create_sleepiness_datasets,
+    SplitDatasets,
+)
 from models import build_model
 
 
@@ -152,24 +150,31 @@ def train() -> Dict[str, Any]:
 
     # 1. Datasets & loaders
     if cfg.data.label_type == "sleepiness":
+        # PPG window -> sleepiness class
         splits = create_sleepiness_datasets()
-
     else:
+        # PPG forecasting
         splits = create_ppg_sequence_datasets()
 
     loaders = make_dataloaders(splits)
 
     # 2. Model, loss, optimizer
     device = cfg.device
-    sequence_output = (
-        cfg.data.pred_len > 1 and cfg.data.label_type != "sleepiness"
-    )
-    model = build_model(sequence_output=(cfg.data.pred_len > 1))
+
+    # For sleepiness: ALWAYS 1 output per sequence (sequence_output = False)
+    # For forecasting: sequence_output depends on pred_len
+    if cfg.data.label_type == "sleepiness":
+        sequence_output = False
+    else:
+        sequence_output = (cfg.data.pred_len > 1)
+
+    model = build_model(sequence_output=sequence_output).to(device)
 
     if cfg.data.label_type == "sleepiness":
         criterion = nn.CrossEntropyLoss()
     else:
         criterion = nn.MSELoss()
+
     optimizer = optim.Adam(
         model.parameters(),
         lr=cfg.training.learning_rate,
@@ -245,7 +250,6 @@ def train() -> Dict[str, Any]:
             break
 
     # 4. Evaluate best model on test set (if saved)
-    test_loss = None
     if save_best and ckpt_path.exists():
         checkpoint = torch.load(ckpt_path, map_location=device)
         model.load_state_dict(checkpoint["model_state_dict"])
@@ -257,7 +261,6 @@ def train() -> Dict[str, Any]:
         )
         print(f"Test loss (best model @ epoch {best_epoch}): {test_loss:.6f}")
     else:
-        # Evaluate current model instead
         test_loss = evaluate(
             model,
             loaders["test"],
@@ -269,6 +272,19 @@ def train() -> Dict[str, Any]:
     history["best_val_loss"] = best_val_loss
     history["best_epoch"] = best_epoch
     history["test_loss"] = test_loss
+
+    # Save training history for plotting later
+    from config import PLOTS_DIR
+    PLOTS_DIR.mkdir(parents=True, exist_ok=True)
+    hist_path = PLOTS_DIR / "training_history.npz"
+    np.savez(
+        hist_path,
+        train_loss=np.array(history["train_loss"]),
+        val_loss=np.array(history["val_loss"]),
+        best_val_loss=np.array([best_val_loss]),
+        best_epoch=np.array([best_epoch]),
+    )
+
 
     return history
 

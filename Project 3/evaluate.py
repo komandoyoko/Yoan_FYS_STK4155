@@ -1,100 +1,63 @@
-from datasets import create_ppg_sequence_datasets, create_sleepiness_datasets
-
-
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any
 
 import numpy as np
 import torch
+from torch import nn
 from torch.utils.data import DataLoader
-import matplotlib.pyplot as plt
 
 from config import cfg, CHECKPOINT_DIR
-from datasets import create_ppg_sequence_datasets, SplitDatasets
+from datasets import (
+    create_ppg_sequence_datasets,
+    create_sleepiness_datasets,
+    SplitDatasets,
+)
 from models import build_model
+from train import make_dataloaders, set_seed
 
 
-# -----------------------------------------------------------
-# Utilities
-# -----------------------------------------------------------
-
-def set_seed(seed: int):
-    import random
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-
-
-def make_dataloaders(
-    splits: SplitDatasets,
-) -> Dict[str, DataLoader]:
-    batch_size = cfg.training.batch_size
-
-    train_loader = DataLoader(
-        splits.train,
-        batch_size=batch_size,
-        shuffle=False,
-        drop_last=False,
-    )
-    val_loader = DataLoader(
-        splits.val,
-        batch_size=batch_size,
-        shuffle=False,
-        drop_last=False,
-    )
-    test_loader = DataLoader(
-        splits.test,
-        batch_size=batch_size,
-        shuffle=False,
-        drop_last=False,
-    )
-
-    return {"train": train_loader, "val": val_loader, "test": test_loader}
-
-
-def load_best_model(
-    ckpt_path: Optional[Path] = None,
-) -> torch.nn.Module:
+def load_best_model(device: str | None = None) -> nn.Module:
     """
-    Load the best model saved by train.py.
+    Build a fresh model and load weights from checkpoints/best_model.pt.
     """
-    if ckpt_path is None:
-        ckpt_path = Path(CHECKPOINT_DIR) / "best_model.pt"
+    if device is None:
+        device = cfg.device
 
+    ckpt_path = Path(CHECKPOINT_DIR) / "best_model.pt"
     if not ckpt_path.exists():
-        raise FileNotFoundError(
-            f"No checkpoint found at {ckpt_path}. "
-            f"Make sure you ran train.py with save_best_model=True."
-        )
+        raise FileNotFoundError(f"No checkpoint found at {ckpt_path}")
 
-    device = cfg.device
-    # Build a fresh model using current cfg (same architecture as during training)
-    model = build_model(sequence_output=(cfg.data.pred_len > 1))
+    # same sequence_output logic as in train.py
+    if cfg.data.label_type == "sleepiness":
+        sequence_output = False
+    else:
+        sequence_output = (cfg.data.pred_len > 1)
+
+    model = build_model(sequence_output=sequence_output).to(device)
+
     checkpoint = torch.load(ckpt_path, map_location=device)
     model.load_state_dict(checkpoint["model_state_dict"])
-    model.to(device)
     model.eval()
-
     return model
 
 
 @torch.no_grad()
 def collect_predictions(
-    model: torch.nn.Module,
+    model: nn.Module,
     dataloader: DataLoader,
     device: str,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
-    Run the model on all batches in dataloader and return stacked
-    (preds, targets) as numpy arrays.
-
-    Works for:
-        - pred_len = 1  -> shapes (N, 1)
-        - pred_len > 1  -> shapes (N, pred_len, 1)
+    Run model on dataloader and return (preds, targets) as numpy arrays.
+    For sleepiness:
+        preds: (N, 7)  logits
+        targets: (N,)  class indices
+    For regression:
+        preds, targets: shapes compatible with MSE.
     """
+    model.eval()
     preds_list = []
     targets_list = []
 
@@ -102,94 +65,19 @@ def collect_predictions(
         X_batch = X_batch.to(device)
         y_batch = y_batch.to(device)
 
-        y_pred = model(X_batch)
-
-        preds_list.append(y_pred.cpu().numpy())
-        targets_list.append(y_batch.cpu().numpy())
+        out = model(X_batch)
+        preds_list.append(out.detach().cpu().numpy())
+        targets_list.append(y_batch.detach().cpu().numpy())
 
     preds = np.concatenate(preds_list, axis=0)
     targets = np.concatenate(targets_list, axis=0)
-
     return preds, targets
 
-
-# -----------------------------------------------------------
-# Plotting helpers
-# -----------------------------------------------------------
-
-def plot_next_step_predictions(
-    preds: np.ndarray,
-    targets: np.ndarray,
-    num_points: int = 200,
-    title: str = "Next-step prediction (test set)",
-):
-    """
-    For pred_len = 1: plot predicted vs true values over time.
-    """
-    # Flatten to (N,)
-    preds_flat = preds.reshape(-1)
-    targets_flat = targets.reshape(-1)
-
-    N = len(preds_flat)
-    num_points = min(num_points, N)
-
-    plt.figure(figsize=(10, 4))
-    plt.plot(targets_flat[:num_points], label="True", linewidth=1)
-    plt.plot(preds_flat[:num_points], label="Predicted", linestyle="--", linewidth=1)
-    plt.xlabel("Time step (test samples)")
-    plt.ylabel("Normalized PPG value")
-    plt.title(title)
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-
-
-def plot_sequence_prediction_example(
-    preds: np.ndarray,
-    targets: np.ndarray,
-    index: int = 0,
-    title: str = "Sequence prediction example (test set)",
-):
-    """
-    For pred_len > 1: plot one example predicted sequence vs true sequence.
-
-    preds:   (N, pred_len, 1)
-    targets: (N, pred_len, 1)
-    """
-    if preds.ndim != 3 or targets.ndim != 3:
-        raise ValueError(
-            f"Expected preds/targets with ndim=3 for sequence predictions, "
-            f"got preds.shape={preds.shape}, targets.shape={targets.shape}"
-        )
-
-    N = preds.shape[0]
-    if index < 0 or index >= N:
-        raise IndexError(f"index must be between 0 and {N-1}, got {index}")
-
-    pred_seq = preds[index, :, 0]    # (pred_len,)
-    true_seq = targets[index, :, 0]  # (pred_len,)
-
-    timesteps = np.arange(len(pred_seq))
-
-    plt.figure(figsize=(8, 4))
-    plt.plot(timesteps, true_seq, label="True", linewidth=1)
-    plt.plot(timesteps, pred_seq, label="Predicted", linestyle="--", linewidth=1)
-    plt.xlabel("Prediction step")
-    plt.ylabel("Normalized PPG value")
-    plt.title(title)
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-
-
-# -----------------------------------------------------------
-# High-level evaluate() function
-# -----------------------------------------------------------
 
 def evaluate_model() -> Dict[str, Any]:
     set_seed(cfg.training.seed)
 
-    # 1. Datasets & loaders
+    # 1. Datasets & loaders (same logic as train.py)
     if cfg.data.label_type == "sleepiness":
         splits = create_sleepiness_datasets()
     else:
@@ -198,8 +86,8 @@ def evaluate_model() -> Dict[str, Any]:
     loaders = make_dataloaders(splits)
 
     # 2. Model
-    model = load_best_model()
     device = cfg.device
+    model = load_best_model(device=device)
 
     # 3. Collect predictions on test set
     preds, targets = collect_predictions(
@@ -209,8 +97,7 @@ def evaluate_model() -> Dict[str, Any]:
     )
 
     if cfg.data.label_type == "sleepiness":
-        # classification: preds are logits (N,7), targets are class indices (N,)
-        # Convert to class predictions
+    # preds: (N, 7)
         if preds.ndim != 2:
             preds_flat = preds.reshape(preds.shape[0], -1)
         else:
@@ -221,12 +108,12 @@ def evaluate_model() -> Dict[str, Any]:
 
         acc = float((y_pred == y_true).mean())
         print(f"Test accuracy (sleepiness): {acc:.4f}")
+
         metric_name = "accuracy"
         metric_value = acc
     else:
-        # regression: MSE
         mse = float(np.mean((preds - targets) ** 2))
-        print(f"Test MSE (from evaluate.py): {mse:.6f}")
+        print(f"Test MSE (forecasting): {mse:.6f}")
         metric_name = "mse"
         metric_value = mse
 
@@ -236,21 +123,8 @@ def evaluate_model() -> Dict[str, Any]:
         "targets": targets,
     }
 
-
-
-# -----------------------------------------------------------
-# Script entry point
-# -----------------------------------------------------------
-
 if __name__ == "__main__":
     print("Using device:", cfg.device)
     results = evaluate_model()
-
-    preds = results["preds"]
-    targets = results["targets"]
-
-    # Choose plotting based on pred_len
-    if cfg.data.pred_len == 1:
-        plot_next_step_predictions(preds, targets, num_points=300)
-    else:
-        plot_sequence_prediction_example(preds, targets, index=0)
+    print("Done.")
+    print(results.keys())

@@ -279,34 +279,35 @@ def build_ppg_windows_with_sleepiness_for_gamer(
     """
     For one gamer:
 
-    - Load PPG, optionally trimmed to the first `max_hours` hours
-      starting from the earliest PPG timestamp.
+    - Load PPG (optionally trimmed, but we will usually use full series).
     - Load annotations.
-    - For each sleepiness annotation (Value 1..7):
-        - take the last `seq_len` PPG samples BEFORE that annotation time
-          (within the trimmed PPG window)
-        - label = sleepiness score (1–7) → class 0–6
+    - For each numeric sleepiness annotation (1–7) at time t_ann:
+        * take PPG in [t_ann - backward_minutes, t_ann]
+        * from that segment, build MANY windows of length seq_len
+          with some stride
+        * each window gets label = score (1–7) -> class 0..6
 
     Returns:
         X: (N, seq_len, 1)  normalized PPG windows
         y: (N,)             int labels in {0..6}
     """
+    # Use config default if not provided
     if max_hours is None:
         max_hours = cfg.data.max_hours_per_gamer
 
-    # 1) Load PPG, trimmed to first `max_hours` hours from the start
+    # 1) Load PPG for this gamer
+    #    If max_hours_per_gamer is None, this loads full 2 days.
     ppg_df = load_ppg_dataframe_for_gamer(
         gamer_id=gamer_id,
-        max_hours=None,          # <-- use ALL PPG for this gamer
+        max_hours=max_hours,
     )
-
 
     if ppg_df.empty:
         raise RuntimeError(
-            f"No PPG data loaded for gamer {gamer_id} (after max_hours trimming)."
+            f"No PPG data loaded for gamer {gamer_id}."
         )
 
-    # Normalize the PPG signal
+    # Normalize PPG
     sig = ppg_df["Red_Signal"].astype("float32").to_numpy()
     if cfg.data.normalize_signal:
         sig, _ = normalize_signal_array(
@@ -320,7 +321,7 @@ def build_ppg_windows_with_sleepiness_for_gamer(
     # 2) Load annotations
     ann_df = load_annotations_for_gamer(gamer_id)
 
-    # Collect all rows where Value is an integer 1..7
+    # Collect (time, score) for sleepiness events (Value in 1..7)
     valid_anns = []
     for _, row in ann_df.iterrows():
         try:
@@ -335,30 +336,41 @@ def build_ppg_windows_with_sleepiness_for_gamer(
             f"No numeric sleepiness annotations (1–7) found for gamer {gamer_id}."
         )
 
-    X_list = []
-    y_list = []
+    backward_minutes = getattr(cfg.data, "backward_minutes", 10.0)
+    stride_fraction = getattr(cfg.data, "window_stride_fraction", 0.5)
+    stride = max(1, int(seq_len * stride_fraction))
+
+    X_list: list[np.ndarray] = []
+    y_list: list[int] = []
 
     for t_ann, score in valid_anns:
-        # PPG up to this annotation time within the trimmed PPG
-        p_before = ppg_df[ppg_df["datetime"] <= t_ann]
-        if len(p_before) < seq_len:
-            # Not enough context before this annotation in the 4h PPG window
+        # PPG segment in the backward window
+        t_start = t_ann - pd.Timedelta(minutes=backward_minutes)
+        seg = ppg_df[
+            (ppg_df["datetime"] >= t_start) &
+            (ppg_df["datetime"] <= t_ann)
+        ]
+
+        values = seg["ppg_norm"].to_numpy().astype("float32")
+
+        if len(values) < seq_len:
+            # Not enough samples in this backward window
             continue
 
-        window = p_before.iloc[-seq_len:]
-        x_win = window["ppg_norm"].to_numpy().astype("float32")  # (seq_len,)
-
-        X_list.append(x_win)
-        y_list.append(score - 1)  # 1..7 -> 0..6
+        # Build many overlapping windows from this segment
+        for start in range(0, len(values) - seq_len + 1, stride):
+            x_win = values[start:start + seq_len]  # (seq_len,)
+            X_list.append(x_win)
+            y_list.append(score - 1)  # 1..7 -> 0..6
 
     if not X_list:
         raise RuntimeError(
-            f"No valid PPG windows found for gamer {gamer_id} with seq_len={seq_len} "
-            f"(after max_hours={max_hours} trimming)."
+            f"No valid PPG windows found for gamer {gamer_id} with "
+            f"seq_len={seq_len}, backward_minutes={backward_minutes}."
         )
 
-    X = np.stack(X_list, axis=0)          # (N, seq_len)
-    y = np.array(y_list, dtype="int64")   # (N,)
+    X = np.stack(X_list, axis=0)        # (N, seq_len)
+    y = np.array(y_list, dtype="int64") # (N,)
 
     # Add feature dimension
     X = X[..., None]  # (N, seq_len, 1)

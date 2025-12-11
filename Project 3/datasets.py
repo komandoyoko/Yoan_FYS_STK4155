@@ -247,15 +247,6 @@ def create_sleepiness_datasets(
     shuffle: bool = True,
     seed: Optional[int] = None,
 ) -> SplitDatasets:
-    """
-    Build sleepiness-labeled datasets:
-
-    Each sample:
-        X: PPG window of length seq_len before an annotation
-        y: sleepiness class 0..6
-
-    Splits into train/val/test.
-    """
     if gamer_ids is None:
         gamer_ids = list(cfg.data.gamer_ids)
     if seq_len is None:
@@ -283,41 +274,36 @@ def create_sleepiness_datasets(
             X_list.append(Xg)
             y_list.append(yg)
         except RuntimeError as e:
-            # If a gamer has no usable windows, we just skip them
             print(f"WARNING: skipping gamer {gid}: {e}")
             continue
 
     if not X_list:
         raise RuntimeError("No valid sleepiness samples found for any gamer.")
 
-    X = np.concatenate(X_list, axis=0)  # (N, seq_len, 1)
-    y = np.concatenate(y_list, axis=0)  # (N,)
+    X = np.concatenate(X_list, axis=0)
+    y = np.concatenate(y_list, axis=0)
 
     N = X.shape[0]
-
     rng = np.random.RandomState(seed)
     indices = np.arange(N)
     if shuffle:
         rng.shuffle(indices)
 
     n_train = int(train_frac * N)
-    n_val = int(val_frac * N)
-    n_test = N - n_train - n_val
+    n_val   = int(val_frac * N)
+    n_test  = N - n_train - n_val
 
     train_idx = indices[:n_train]
-    val_idx = indices[n_train : n_train + n_val]
-    test_idx = indices[n_train + n_val :]
+    val_idx   = indices[n_train:n_train + n_val]
+    test_idx  = indices[n_train + n_val:]
 
     X_train, y_train = X[train_idx], y[train_idx]
-    X_val, y_val = X[val_idx], y[val_idx]
-    X_test, y_test = X[test_idx], y[test_idx]
+    X_val,   y_val   = X[val_idx],   y[val_idx]
+    X_test,  y_test  = X[test_idx],  y[test_idx]
 
     train_ds = PPGLabeledSleepinessDataset(X_train, y_train)
-    val_ds = PPGLabeledSleepinessDataset(X_val, y_val)
-    test_ds = PPGLabeledSleepinessDataset(X_test, y_test)
+    val_ds   = PPGLabeledSleepinessDataset(X_val,   y_val)
+    test_ds  = PPGLabeledSleepinessDataset(X_test,  y_test)
 
-    return SplitDatasets(
-        train=train_ds,
-        val=val_ds,
-        test=test_ds,
-    )
+    return SplitDatasets(train=train_ds, val=val_ds, test=test_ds)
+
