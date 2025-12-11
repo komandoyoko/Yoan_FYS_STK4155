@@ -48,10 +48,12 @@ Project 3/
 ├── train.py                       # Trains a single baseline model (e.g. LSTM with default H and T)
 ├── experiments.py                 # Runs systematic experiments over architectures / hidden sizes / seq lengths
 ├── plots.py                       # Regenerates all plots from saved results and experiment summary
+├── config.py                      # Model definitions (RNN, LSTM, GRU) if factored out
+├── data_loading.py                # PPG loading, preprocessing, and windowing logic (if separated)
+├── evaluate.py                    # Evaluates prediction
+├── datasets.py                    # Constructing and building datasets
 │
-├── utils_dataset.py (optional)    # PPG loading, preprocessing, and windowing logic (if separated)
-├── models.py (optional)           # Model definitions (RNN, LSTM, GRU) if factored out
-│
-├── report.tex                     # LaTeX source for the final project report
+├── report.pdf                     # LaTeX source for the final project report
+├── project3_description.ipynb     # Just description of the project
 ├── references.bib                 # Bibliography for the report
 └── README.md                      # Project overview and usage instructions
